@@ -17,7 +17,13 @@ PDF_FILEPATH = 'article.pdf'            # Input PDF file
 OUTPUT_DIR = 'ArticleV'                 # Output directory for JSON and downloaded PDFs
 WORD_LIMIT = 8000                       # Word limit when extracting the main content
 
+MAIN_API_KEY = os.getenv("MAIN_API_KEY")
+MAIN_API_URL = os.getenv("MAIN_API_URL")
+MAIN_MODEL = os.getenv("MAIN_MODEL")
 
+VERIF_API_KEY = os.getenv("VERIF_API_KEY")
+VERIF_API_URL = os.getenv("VERIF_API_URL")
+VERIF_MODEL = os.getenv("VERIF_MODEL")
 
 # Third party services for DOI & PDF retrieval
 CROSSREF_API_URL   = "https://api.crossref.org/works"
@@ -491,7 +497,7 @@ def call_verification_api(payload, api_url=VERIF_API_URL, api_key=VERIF_API_KEY,
         "Authorization": f"Bearer {api_key}"
     }
     payload.setdefault("model", VERIF_MODEL)
-    payload.setdefault("temperature", 1)
+    payload.setdefault("temperature", 0.05)
     payload.setdefault("top_p", 1)
     payload.setdefault("repetition_penalty", 1)
     try:
@@ -525,7 +531,7 @@ def process_main_content(text):
     content = f"[TEXT]{text}[/TEXT]\n\n{prompt}"
     payload = {
         "messages": [{"role": "user", "content": content}],
-        "temperature": 0.0  # Lower temperature for more consistent output
+        "temperature": 0.05  # Lower temperature for more consistent output
     }
     
     try:
@@ -574,7 +580,7 @@ def process_references_section(text):
     content = f"[REFERENCES]{text}[/REFERENCES]\n\n{prompt}"
     payload = {
         "messages": [{"role": "user", "content": content}],
-        "temperature": 0.0
+        "temperature": 0.05
     }
     
     try:
@@ -636,7 +642,7 @@ def verify_sentences_batch(article_text, sentences):
     
     payload = {
         "messages": [{"role": "user", "content": content}],
-        "temperature": 0.0
+        "temperature": 0.05
     }
     
     try:
@@ -723,6 +729,50 @@ def process_articles_with_verification(articles_dir, sentences_data):
     
     return sentences_data
 
+def format_json_as_text(json_data):
+    """
+    Convert the JSON data into a readable text format.
+    """
+    text_output = []
+    
+    # Add header
+    text_output.append("REFERENCE CHECKER RESULTS")
+    text_output.append("=" * 50 + "\n")
+    
+    # Process sentences section
+    text_output.append("CITED SENTENCES AND VERIFICATIONS")
+    text_output.append("-" * 50)
+    
+    for i, sentence in enumerate(json_data.get("sentences", []), 1):
+        text_output.append(f"\nSentence {i}:")
+        text_output.append(f"Content: {sentence.get('sentence', '')}")
+        text_output.append(f"Referenced in: {', '.join(map(str, sentence.get('references', [])))}")
+        
+        if "verifications" in sentence:
+            text_output.append("\nVerifications:")
+            for v in sentence["verifications"]:
+                text_output.append(f"  - Reference {v.get('reference', '')}")
+                text_output.append(f"    Verdict: {v.get('verdict', '')}")
+                text_output.append(f"    Explanation: {v.get('explanation', '')}")
+        text_output.append("-" * 30)
+    
+    # Process references section
+    text_output.append("\n\nREFERENCE DETAILS")
+    text_output.append("-" * 50)
+    
+    for ref_id, ref in json_data.get("references", {}).items():
+        text_output.append(f"\nReference {ref_id}:")
+        text_output.append(f"Title: {ref.get('title', '')}")
+        text_output.append(f"First Author: {ref.get('first_author', '')}")
+        text_output.append(f"PMC ID: {ref.get('pmc_id', '0')}")
+        text_output.append(f"DOI Found: {ref.get('doi_found', False)}")
+        text_output.append(f"Download Source: {ref.get('download_source', 'Not downloaded')}")
+        if ref.get('web_address'):
+            text_output.append(f"Web Address: {ref['web_address']}")
+        text_output.append("-" * 30)
+    
+    return "\n".join(text_output)
+
 # ===========================
 # Main Function
 # ===========================
@@ -779,23 +829,19 @@ def main():
     # This text file will list for each sentence any associated verification details.
     confirmations_txt_path = os.path.join(OUTPUT_DIR, "confirmations.txt")
     try:
-        with open(confirmations_txt_path, "w", encoding="utf-8") as f:
-            f.write("Citation Confirmation Verifications\n")
-            f.write("="*40 + "\n\n")
-            for sent in final_output.get("sentences", []):
-                if "verifications" in sent:
-                    # Write the sentence once, then list each verification.
-                    f.write("Sentence: " + sent["sentence"] + "\n")
-                    for ver in sent["verifications"]:
-                        f.write("  - Reference: {} | Verdict: {} | Explanation: {}\n".format(
-                            ver.get("reference", ""),
-                            ver.get("verdict", ""),
-                            ver.get("explanation", "")
-                        ))
-                    f.write("-"*40 + "\n")
-        logger.debug(f"Confirmation text file saved to: {confirmations_txt_path}")
+        # First save the JSON as before
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(final_output, f, indent=2, ensure_ascii=False)
+        logger.debug(f"Final output saved to: {out_path}")
+        
+        # Now create the text version
+        text_output = format_json_as_text(final_output)
+        text_path = os.path.join(OUTPUT_DIR, "confirmations.txt")
+        with open(text_path, "w", encoding="utf-8") as f:
+            f.write(text_output)
+        logger.debug(f"Text format output saved to: {text_path}")
     except Exception as e:
-        logger.debug(f"Error writing confirmations text file: {e}")
+        logger.debug(f"Output save error: {e}")
     
     # Zip downloaded articles.
     save_articles_zip(OUTPUT_DIR)
