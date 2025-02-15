@@ -38,7 +38,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(root_path="/reference-checker/api")
 
 # CORS middleware
 app.add_middleware(
