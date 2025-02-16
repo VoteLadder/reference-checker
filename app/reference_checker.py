@@ -9,6 +9,10 @@ from collections import defaultdict
 from zipfile import ZipFile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import fitz  # PyMuPDF
+from dotenv import load_dotenv
+load_dotenv()
+
+
 
 # ===========================
 # Global Configuration and Constants

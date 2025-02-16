@@ -5,11 +5,10 @@ import time
 import json
 import asyncio
 import logging
-import aiohttp
 from typing import Dict, Optional
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from concurrent.futures import ThreadPoolExecutor
@@ -19,6 +18,7 @@ from zipfile import ZipFile
 from sqlalchemy.orm import Session
 from datetime import datetime
 from asyncio import QueueEmpty
+from fastapi.responses import HTMLResponse
 from .database import get_db, ProcessingRequest, SessionLocal
 from concurrent.futures import ThreadPoolExecutor
 from .reference_checker import (
@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     root_path="/website/reference_checker/reference-checker/api"
 )
+
 
 # CORS middleware
 app.add_middleware(
@@ -85,46 +86,13 @@ async def submit_pdf(
         with open(pdf_path, "wb") as f:
             f.write(await file.read())
 
-        # Extract title immediately
-        try:
-            doc = fitz.open(pdf_path)
-            first_page_text = doc[0].get_text().strip()
-            doc.close()
-
-            # Split text into lines and filter out empty ones
-            lines = [line.strip() for line in first_page_text.split('\n') if line.strip()]
-
-            # Try to find a meaningful title
-            title = None
-            for line in lines[:5]:  # Check first 5 non-empty lines
-                # Skip lines that are too short or look like headers/metadata
-                if len(line) > 10 and not any(skip in line.lower() for skip in
-                                               ['university', 'journal', 'conference', 'proceedings', 'doi:', 'http', 'www']):
-                    title = line
-                    break
-
-            if not title:
-                title = lines[0] if lines else file.filename
-
-            # Clean up the title
-            title = title.replace('\n', ' ').replace('\r', ' ').strip()
-            title = ' '.join(title.split())  # Normalize whitespace
-            # Only truncate if it's really long
-            if len(title) > 150:
-                title = title[:150] + '...'
-
-        except Exception as e:
-            logger.error(f"Error extracting title: {str(e)}")
-            title = file.filename
-
-        # Create database entry with title
+        # Create database entry
         db_request = ProcessingRequest(
             request_id=request_id,
             status="pending",
             progress={"stage": "Queued"},
             output_dir=request_dir,
-            original_filename=file.filename,
-            article_title=title  # Add the extracted title
+            original_filename=file.filename
         )
         db.add(db_request)
         db.commit()
@@ -136,55 +104,6 @@ async def submit_pdf(
     except Exception as e:
         logger.error(f"Error submitting PDF: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
-
-@app.post("/generate_summary")
-async def generate_summary(request: Request, db: Session = Depends(get_db)):
-    try:
-        body = await request.json()
-        request_id = body.get('request_id')
-        if not request_id:
-            raise HTTPException(status_code=400, detail="request_id is required")
-
-        db_request = db.query(ProcessingRequest).filter(ProcessingRequest.request_id == request_id).first()
-        if not db_request:
-            raise HTTPException(status_code=404, detail="Request not found")
-
-        pdf_path = os.path.join(db_request.output_dir, "article.pdf")
-        if not os.path.exists(pdf_path):
-            raise HTTPException(status_code=404, detail="PDF not found")
-
-        # Extract first page text for summary
-        doc = fitz.open(pdf_path)
-        text = doc[0].get_text()
-        doc.close()
-
-        # Call Gemini API for summary
-        headers = {
-            "Authorization": f"Bearer {os.getenv('MAIN_API_KEY')}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": os.getenv('MAIN_MODEL'),
-            "messages": [
-                {
-                    "role": "user",
-                    "content": f"Please provide a concise 100-word summary of the following academic text:\n\n{text}"
-                }
-            ]
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(os.getenv('MAIN_API_URL'), headers=headers, json=payload) as response:
-                if response.status != 200:
-                    raise HTTPException(status_code=500, detail="Error generating summary")
-                data = await response.json()
-                summary = data['choices'][0]['message']['content']
-                return {"summary": summary}
-
-    except Exception as e:
-        logger.error(f"Error generating summary: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/status/{request_id}")
 async def get_status(request_id: str, db: Session = Depends(get_db)):
@@ -201,8 +120,7 @@ async def get_all_status(db: Session = Depends(get_db)):
         "progress": req.progress,
         "created_at": req.created_at.isoformat(),
         "updated_at": req.updated_at.isoformat(),
-        "original_filename": req.original_filename,
-        "article_title": req.article_title
+        "original_filename": req.original_filename
     } for req in requests}}
 
 @app.get("/download/{request_id}/{filename}")
@@ -237,31 +155,30 @@ def save_json(path: str, data: dict):
     """Helper function to save JSON data"""
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-
 def save_confirmations(path: str, final_output: dict):
     """Helper function to save all JSON data as a readable text file"""
     with open(path, "w", encoding="utf-8") as f:
         # Write sentences section
         f.write("ARTICLE SENTENCES AND VERIFICATIONS\n")
         f.write("="*50 + "\n\n")
-
+        
         for sent in final_output.get("sentences", []):
             f.write("Sentence:\n")
             f.write(sent.get("sentence", "") + "\n\n")
-
+            
             if "verifications" in sent:
                 f.write("Verifications:\n")
                 for ver in sent["verifications"]:
                     f.write(f"Reference: {ver.get('reference', '')}\n")
                     f.write(f"Verdict: {ver.get('verdict', '')}\n")
                     f.write(f"Explanation: {ver.get('explanation', '')}\n")
-                f.write("\n")
+                    f.write("\n")
             f.write("-"*50 + "\n\n")
-
+        
         # Write references section
         f.write("\nREFERENCES\n")
         f.write("="*50 + "\n\n")
-
+        
         for ref_key, ref_data in final_output.get("references", {}).items():
             f.write(f"Reference {ref_key}:\n")
             for key, value in ref_data.items():
@@ -271,6 +188,7 @@ def save_confirmations(path: str, final_output: dict):
                     f.write(f"{key}: {value}\n")
             f.write("\n")
             f.write("-"*50 + "\n\n")
+
 
 async def process_request(request_id: str, pdf_path: str, db: Session):
     """Process a single PDF request"""
@@ -283,10 +201,43 @@ async def process_request(request_id: str, pdf_path: str, db: Session):
         request.progress = {"stage": "Extracting text"}
         db.commit()
 
-        # Extract text and references
+        # Extract text and get title
+        def extract_title_and_text():
+            try:
+                doc = fitz.open(pdf_path)
+                # Get text from first page
+                first_page_text = doc[0].get_text().strip()
+
+                # Try multiple approaches to get title
+                if first_page_text:
+                    # Split by newlines and get first non-empty line
+                    lines = [line.strip() for line in first_page_text.split('\n') if line.strip()]
+                    title = lines[0] if lines else "Untitled Document"
+                else:
+                    title = "Untitled Document"
+
+                # Sanitize and limit title length
+                title = title.replace('\n', ' ').replace('\r', ' ').strip()
+                title = ' '.join(title.split())  # Normalize whitespace
+                title = title[:100] + ('...' if len(title) > 100 else '')
+
+                # Get the rest of the text
+                main_text = extract_relevant_text(pdf_path, word_limit=WORD_LIMIT)
+                references = extract_references_section(pdf_path)
+
+                return title, main_text, references
+            except Exception as e:
+                logger.error(f"Error extracting title: {str(e)}")
+                return "Untitled Document", extract_relevant_text(pdf_path, word_limit=WORD_LIMIT), extract_references_section(pdf_path)
+            finally:
+                if 'doc' in locals():
+                    doc.close()
+
+        # Run extraction in thread pool
         loop = asyncio.get_event_loop()
-        main_text = await loop.run_in_executor(None, lambda: extract_relevant_text(pdf_path, word_limit=WORD_LIMIT))
-        references_text = await loop.run_in_executor(None, extract_references_section, pdf_path)
+        title, main_text, references_text = await loop.run_in_executor(None, extract_title_and_text)
+        request.article_title = title
+        db.commit()
 
         if not main_text or not references_text:
             raise Exception("Text extraction failed")
@@ -294,6 +245,8 @@ async def process_request(request_id: str, pdf_path: str, db: Session):
         # Process main content
         request.progress = {"stage": "Processing main content"}
         db.commit()
+
+        # Run main content processing in thread pool
         main_data = await loop.run_in_executor(None, lambda: process_main_content(main_text))
         sentences_data = main_data.get("sentences", [])
 
@@ -345,6 +298,7 @@ async def process_request(request_id: str, pdf_path: str, db: Session):
         request.progress = {"stage": f"Error: {str(e)}"}
         db.commit()
 
+
 async def process_queue():
     """Background task to process the queue"""
     global is_processing
@@ -366,15 +320,16 @@ async def process_queue():
                     finally:
                         processing_queue.task_done()
                         is_processing = False
-
                 except asyncio.QueueEmpty:
                     await asyncio.sleep(1)
             else:
                 await asyncio.sleep(1)
+
         except Exception as e:
             logger.error(f"Error in queue processing: {str(e)}")
             is_processing = False
             await asyncio.sleep(1)
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -383,4 +338,4 @@ async def startup_event():
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))  # Get port from env, default to 8001
     host = os.getenv("HOST", "0.0.0.0")    # Get host from env, default to 0.0.0.0
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run(app, host=host, port=port) # Now use port from .env

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Reference Checker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+    <!-- Google Fonts (example: Inter) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Apply a nice font globally */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .processing-animation {
+            animation: processing 2s infinite;
+        }
+        @keyframes processing {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hover-scale {
+            transition: transform 0.2s ease;
+        }
+        .hover-scale:hover {
+            transform: scale(1.02);
+        }
+        #infoBox {
+            background-color: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            overflow-y: auto;
+            white-space: pre-line;
+            font-family: monospace;
+            font-size: 0.95em;
+            line-height: 1.5;
+            max-height: 15em; /* Adjust this value to control the height (approx. 7 lines) */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+    <!-- Gradient Header Section -->
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-16 text-center shadow-lg">
+        <h1 class="text-6xl font-bold mb-4">Reference Checker</h1>
+        <p class="text-xl">Upload a PDF to verify citations and analyze references</p>
+    </header>
+
+    <div class="container mx-auto px-6 py-10 flex-grow">
+        <!-- Combined Info and Upload Section -->
+        <section class="mb-12 flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-6">
+            <!-- Info Section (moved inside combined section and adjusted width) -->
+            <div class="md:w-1/2 bg-white rounded-lg shadow-md p-8 flex flex-col justify-between">
+                <h2 class="text-2xl font-semibold mb-6 text-gray-800">Information</h2>
+                <div id="infoBox" class="flex-grow"></div>
+            </div>
+
+            <!-- Upload Section (moved inside combined section and adjusted width) -->
+            <div class="md:w-1/2 bg-white rounded-lg shadow-md p-8 flex flex-col justify-between">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6">Upload PDF</h2>
+                <div class="flex-grow">
+                    <form id="uploadForm" class="space-y-6">
+                        <div class="border-2 border-dashed border-gray-400 rounded-lg p-8 text-center transition-colors hover:border-blue-500 hover:bg-blue-50" id="dropZone">
+                            <input type="file" class="hidden" id="pdfFile" name="file" accept=".pdf" required>
+                            <div class="space-y-3">
+                                <i class="fas fa-cloud-upload-alt text-5xl text-gray-500"></i>
+                                <p class="text-gray-700 text-lg">Drag and drop your PDF here or</p>
+                                <button
+                                    type="button"
+                                    class="px-5 py-3 bg-blue-600 text-white rounded-md shadow-md hover:bg-blue-700 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                                    onclick="document.getElementById('pdfFile').click()"
+                                >
+                                    Browse Files
+                                </button>
+                            </div>
+                        </div>
+                        <div id="fileInfo" class="hidden">
+                            <div class="flex items-center space-x-3 text-gray-700">
+                                <i class="fas fa-file-pdf text-red-500 text-lg"></i>
+                                <span id="fileName" class="font-medium"></span>
+                                <button
+                                    type="button"
+                                    onclick="clearFile()"
+                                    class="text-red-500 hover:text-red-700 transition-colors focus:outline-none"
+                                >
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button
+                            type="submit"
+                            class="w-full py-3 bg-green-600 text-white rounded-md shadow-md hover:bg-green-700 transition-transform focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
+                        >
+                            Process PDF
+                        </button>
+                    </form>
+                </div>
+                <div id="uploadMessage" class="mt-6 hidden"></div>
+            </div>
+        </section>
+
+        <!-- Processing Queue -->
+        <section class="max-w-6xl mx-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-semibold text-gray-800">Processing Queue</h2>
+                <div class="w-1/3">
+                    <div class="relative">
+                        <input
+                            type="text"
+                            id="searchInput"
+                            class="w-full px-5 py-3 border border-gray-300 rounded-lg pl-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Search articles..."
+                        />
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                                    Filename
+                                </th>
+                                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                                    Progress
+                                </th>
+                                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="queueTableBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Queue items will be dynamically added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-200 text-center py-6 mt-10">
+        <p class="text-sm text-gray-600">© 2025 Reference Checker. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // If your FastAPI has a root_path, adjust accordingly:
+        // Example: const baseURL = "/reference-checker/api" if using root_path="/reference-checker/api"
+        const baseURL = "/reference_checker/api";
+
+        // Utility functions
+        function showMessage(message, isError = false) {
+            const messageDiv = document.getElementById('uploadMessage');
+            messageDiv.className = `mt-6 p-4 rounded-md ${
+                isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+            } fade-in`;
+            messageDiv.textContent = message;
+            messageDiv.classList.remove('hidden');
+            setTimeout(() => {
+                messageDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        function getStatusBadgeClass(status) {
+            const classes = {
+                pending: 'bg-yellow-100 text-yellow-800',
+                processing: 'bg-blue-100 text-blue-800',
+                completed: 'bg-green-100 text-green-800',
+                error: 'bg-red-100 text-red-800'
+            };
+            return `px-2 py-1 rounded-full text-sm font-medium ${
+                classes[status] || 'bg-gray-100 text-gray-800'
+            }`;
+        }
+
+        // File handling
+        function handleFile(file) {
+            const fileInfo = document.getElementById('fileInfo');
+            const fileName = document.getElementById('fileName');
+            if (file) {
+                fileName.textContent = file.name;
+                fileInfo.classList.remove('hidden');
+            }
+        }
+
+        function clearFile() {
+            const fileInput = document.getElementById('pdfFile');
+            const fileInfo = document.getElementById('fileInfo');
+            fileInput.value = '';
+            fileInfo.classList.add('hidden');
+        }
+
+        // Download handling
+        async function downloadFile(requestId, filename) {
+            try {
+                const button = event.target;
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                button.disabled = true;
+
+                const response = await fetch(`${baseURL}/download/${requestId}/${filename}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                button.innerHTML = originalText;
+                button.disabled = false;
+            } catch (error) {
+                console.error('Download failed:', error);
+                showMessage(`Failed to download ${filename}: ${error.message}`, true);
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        let currentQueueData = {};
+
+        // Queue handling
+        async function updateQueueTable() {
+            try {
+                const response = await fetch(`${baseURL}/status`);
+                const data = await response.json();
+                const tbody = document.getElementById('queueTableBody');
+                const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+                const newQueueData = data.requests;
+
+                // Clear existing table body before re-rendering
+                tbody.innerHTML = '';
+
+                Object.entries(newQueueData).forEach(([requestId, request]) => {
+                    const filename = request.original_filename || 'Untitled Document';
+                    // Filter by search term
+                    if (!searchTerm || filename.toLowerCase().includes(searchTerm)) {
+                        const row = document.createElement('tr');
+                        row.id = `queueRow-${requestId.replace(/[^a-zA-Z0-9]/g, '')}`;
+                        row.className = 'hover:bg-gray-50 fade-in';
+
+                        const statusIcon = {
+                            pending: '<i class="fas fa-clock text-yellow-500"></i>',
+                            processing: '<i class="fas fa-cog fa-spin text-blue-500"></i>',
+                            completed: '<i class="fas fa-check text-green-500"></i>',
+                            error: '<i class="fas fa-exclamation-circle text-red-500"></i>'
+                        }[request.status] || '';
+
+                        row.innerHTML = `
+                            <td class="px-6 py-4">
+                                <div class="flex flex-col">
+                                    <div class="text-sm font-medium text-gray-900 article-title">
+                                        ${filename}
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        ID: ${requestId.slice(0, 8)}...
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap status-cell">
+                                <div class="flex items-center space-x-2 status-icon">
+                                    ${statusIcon}
+                                    <span class="status-badge ${getStatusBadgeClass(request.status)}">
+                                        ${request.status}
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 progress-cell">
+                                ${request.progress.stage || 'N/A'}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium actions-cell">
+                                ${
+                                    request.status === 'completed'
+                                        ? `
+                                                  <div class="flex space-x-2">
+                                                      <button onclick="downloadFile('${requestId}', 'verified.json')"
+                                                          class="px-4 py-2 bg-blue-600 text-white rounded shadow-md hover:bg-blue-700 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"> <i class="fas fa-download mr-1"></i> Results
+                                                      </button>
+                                                      <button onclick="downloadFile('${requestId}', 'confirmations.txt')"
+                                                          class="px-4 py-2 bg-indigo-600 text-white rounded shadow-md hover:bg-indigo-700 transition-transform focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"> <i class="fas fa-file-alt mr-1"></i> Report
+                                                      </button>
+                                                      <button onclick="downloadFile('${requestId}', 'articles.zip')"
+                                                          class="px-4 py-2 bg-green-600 text-white rounded shadow-md hover:bg-green-700 transition-transform focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"> <i class="fas fa-file-archive mr-1"></i> Articles
+                                                      </button>
+                                                  </div>
+                                                `
+                                        : ''
+                                }
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    }
+                });
+
+                currentQueueData = newQueueData;
+            } catch (error) {
+                console.error('Error updating queue:', error);
+            }
+        }
+
+        // Form handling
+        document.getElementById('uploadForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const submitButton = this.querySelector('button[type="submit"]');
+
+            try {
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+
+                const response = await fetch(`${baseURL}/submit`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.request_id) {
+                    showMessage(`Upload successful! Request ID: ${data.request_id}`);
+                    this.reset();
+                    clearFile();
+                    await updateQueueTable();
+                } else {
+                    showMessage(data.detail || 'Upload failed', true);
+                }
+            } catch (error) {
+                showMessage(`Upload failed: ${error}`, true);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Process PDF';
+            }
+        });
+
+        // Drag and drop handling
+        const dropZone = document.getElementById('dropZone');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('border-blue-500', 'bg-blue-50');
+            });
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+            });
+        });
+        dropZone.addEventListener('drop', (e) => {
+            const file = e.dataTransfer.files[0];
+            if (file && file.type === 'application/pdf') {
+                const fileInput = document.getElementById('pdfFile');
+                fileInput.files = e.dataTransfer.files;
+                handleFile(file);
+            } else {
+                showMessage('Please upload a PDF file', true);
+            }
+        });
+        document.getElementById('pdfFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function () {
+            updateQueueTable();
+        });
+
+        // Load info.txt content
+        async function loadInfoText() {
+            try {
+                const response = await fetch('info.txt'); // Adjust path if needed
+                if (!response.ok) {
+                    throw new Error(`Failed to load info.txt: ${response.status}`);
+                }
+                const text = await response.text();
+                document.getElementById('infoBox').textContent = text;
+            } catch (error) {
+                console.error('Error loading info.txt:', error);
+                document.getElementById('infoBox').textContent = 'Failed to load info.txt';
+            }
+        }
+
+        // Initial load and polling
+        loadInfoText();
+        updateQueueTable();
+        setInterval(updateQueueTable, 10000);
+    </script>
+</body>
+</html>
+

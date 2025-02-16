@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reference Checker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .processing-animation {
+            animation: processing 2s infinite;
+        }
+        @keyframes processing {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hover-scale {
+            transition: transform 0.2s ease;
+        }
+        .hover-scale:hover {
+            transform: scale(1.02);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Reference Checker</h1>
+            <p class="text-gray-600">Upload a PDF to verify citations and analyze references</p>
+        </header>
+
+        <!-- Upload Section -->
+        <section class="mb-12">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-white rounded-lg shadow-md p-6 hover-scale">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Upload PDF</h2>
+                    <form id="uploadForm" class="space-y-4">
+                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center" id="dropZone">
+                            <input type="file" class="hidden" id="pdfFile" name="file" accept=".pdf" required>
+                            <div class="space-y-2">
+                                <i class="fas fa-cloud-upload-alt text-4xl text-gray-400"></i>
+                                <p class="text-gray-600">Drag and drop your PDF here or</p>
+                                <button type="button"
+                                        class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                                        onclick="document.getElementById('pdfFile').click()">
+                                    Browse Files
+                                </button>
+                            </div>
+                        </div>
+                        <div id="fileInfo" class="hidden">
+                            <div class="flex items-center space-x-2 text-gray-700">
+                                <i class="fas fa-file-pdf text-red-500"></i>
+                                <span id="fileName"></span>
+                                <button type="button" onclick="clearFile()" class="text-red-500 hover:text-red-700">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="submit"
+                                class="w-full py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors">
+                            Process PDF
+                        </button>
+                    </form>
+                </div>
+                <div id="uploadMessage" class="mt-4 hidden"></div>
+            </div>
+        </section>
+
+        <!-- Processing Queue -->
+        <section class="max-w-6xl mx-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold text-gray-800">Processing Queue</h2>
+                <div class="w-1/3">
+                    <div class="relative">
+                        <input type="text"
+                               id="searchInput"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="Search articles...">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Filename
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Progress
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="queueTableBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Queue items will be dynamically added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Adjust baseURL if you remove root_path from main.py:
+        // If your FastAPI has no root_path, use "" or "/api" if you set a prefix manually.
+        // If you keep root_path="/reference-checker/api", remove the extra "/reference-checker/api" below.
+        const baseURL = "/reference_checker/api";  // or "/api" if you define a prefix in your routes
+
+        // Utility functions
+        function showMessage(message, isError = false) {
+            const messageDiv = document.getElementById('uploadMessage');
+            messageDiv.className = `mt-4 p-4 rounded-md ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'} fade-in`;
+            messageDiv.textContent = message;
+            messageDiv.classList.remove('hidden');
+            setTimeout(() => {
+                messageDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        function getStatusBadgeClass(status) {
+            const classes = {
+                'pending': 'bg-yellow-100 text-yellow-800',
+                'processing': 'bg-blue-100 text-blue-800',
+                'completed': 'bg-green-100 text-green-800',
+                'error': 'bg-red-100 text-red-800'
+            };
+            return `px-2 py-1 rounded-full text-sm font-medium ${classes[status] || 'bg-gray-100 text-gray-800'}`;
+        }
+
+        // File handling
+        function handleFile(file) {
+            const fileInfo = document.getElementById('fileInfo');
+            const fileName = document.getElementById('fileName');
+            if (file) {
+                fileName.textContent = file.name;
+                fileInfo.classList.remove('hidden');
+            }
+        }
+
+        function clearFile() {
+            const fileInput = document.getElementById('pdfFile');
+            const fileInfo = document.getElementById('fileInfo');
+            fileInput.value = '';
+            fileInfo.classList.add('hidden');
+        }
+
+        // Download handling
+        async function downloadFile(requestId, filename) {
+            try {
+                const button = event.target;
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                button.disabled = true;
+
+                const response = await fetch(`${baseURL}/download/${requestId}/${filename}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                button.innerHTML = originalText;
+                button.disabled = false;
+            } catch (error) {
+                console.error('Download failed:', error);
+                showMessage(`Failed to download ${filename}: ${error.message}`, true);
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        let currentQueueData = {};
+
+        // Queue handling
+        async function updateQueueTable() {
+            try {
+                const response = await fetch(`${baseURL}/status`);
+                const data = await response.json();
+                const tbody = document.getElementById('queueTableBody');
+                const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+                const newQueueData = data.requests;
+
+                Object.entries(newQueueData).forEach(([requestId, request]) => {
+                    const filename = request.original_filename || 'Untitled Document'; // Changed here to filename
+                    if (!searchTerm || filename.toLowerCase().includes(searchTerm)) { // Changed here to filename
+                        let existingRow = document.querySelector(`#queueRow-${requestId.replace(/[^a-zA-Z0-9]/g, '')}`);
+                        if (existingRow) {
+                            // Update existing row
+                            const statusBadge = existingRow.querySelector('.status-badge');
+                            const statusIconSpan = existingRow.querySelector('.status-icon');
+                            const progressCell = existingRow.querySelector('.progress-cell');
+
+                            if (currentQueueData[requestId]?.status !== request.status) {
+                                statusBadge.className = `status-badge ${getStatusBadgeClass(request.status)}`;
+                                statusBadge.textContent = request.status;
+                                statusIconSpan.innerHTML = {
+                                    'pending': '<i class="fas fa-clock text-yellow-500"></i>',
+                                    'processing': '<i class="fas fa-cog fa-spin text-blue-500"></i>',
+                                    'completed': '<i class="fas fa-check text-green-500"></i>',
+                                    'error': '<i class="fas fa-exclamation-circle text-red-500"></i>'
+                                }[request.status] || '';
+                            }
+                            if (currentQueueData[requestId]?.progress.stage !== request.progress.stage) {
+                                progressCell.textContent = request.progress.stage || 'N/A';
+                            }
+                        } else {
+                            // Create new row
+                            const row = document.createElement('tr');
+                            row.id = `queueRow-${requestId.replace(/[^a-zA-Z0-9]/g, '')}`;
+                            row.className = 'hover:bg-gray-50 fade-in';
+
+                            const statusIcon = {
+                                'pending': '<i class="fas fa-clock text-yellow-500"></i>',
+                                'processing': '<i class="fas fa-cog fa-spin text-blue-500"></i>',
+                                'completed': '<i class="fas fa-check text-green-500"></i>',
+                                'error': '<i class="fas fa-exclamation-circle text-red-500"></i>'
+                            }[request.status] || '';
+
+                            row.innerHTML = `
+                                <td class="px-6 py-4">
+                                    <div class="flex flex-col">
+                                        <div class="text-sm font-medium text-gray-900 article-title">
+                                            ${filename}  // Changed here to filename
+                                        </div>
+                                        <div class="text-xs text-gray-500">
+                                            ID: ${requestId.slice(0, 8)}...
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap status-cell">
+                                    <div class="flex items-center space-x-2 status-icon">
+                                        ${statusIcon}
+                                        <span class="status-badge ${getStatusBadgeClass(request.status)}">
+                                            ${request.status}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 progress-cell">
+                                    ${request.progress.stage || 'N/A'}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    ${request.status === 'completed' ? `
+                                        <div class="flex space-x-2">
+                                            <button onclick="downloadFile('${requestId}', 'verified.json')"
+                                                    class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+                                                <i class="fas fa-download mr-1"></i> Results
+                                            </button>
+                                            <button onclick="downloadFile('${requestId}', 'confirmations.txt')"
+                                                    class="px-3 py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors">
+                                                <i class="fas fa-file-alt mr-1"></i> Report
+                                            </button>
+                                            <button onclick="downloadFile('${requestId}', 'articles.zip')"
+                                                    class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors">
+                                                <i class="fas fa-file-archive mr-1"></i> Articles
+                                            </button>
+                                        </div>
+                                    ` : ''}
+                                </td>
+                            `;
+                            tbody.appendChild(row);
+                        }
+                    } else {
+                        // If it doesn't match the search, remove the row if it exists
+                        const existingRow = document.querySelector(`#queueRow-${requestId.replace(/[^a-zA-Z0-9]/g, '')}`);
+                        if (existingRow) {
+                            existingRow.remove();
+                        }
+                    }
+                });
+
+                currentQueueData = newQueueData;
+            } catch (error) {
+                console.error('Error updating queue:', error);
+            }
+        }
+
+        // Form handling
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const submitButton = this.querySelector('button[type="submit"]');
+
+            try {
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+
+                const response = await fetch(`${baseURL}/submit`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.request_id) {
+                    showMessage(`Upload successful! Request ID: ${data.request_id}`);
+                    this.reset();
+                    clearFile();
+                    await updateQueueTable();
+                } else {
+                    showMessage(data.detail || 'Upload failed', true);
+                }
+            } catch (error) {
+                showMessage(`Upload failed: ${error}`, true);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Process PDF';
+            }
+        });
+
+        // Drag and drop handling
+        const dropZone = document.getElementById('dropZone');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('border-blue-500', 'bg-blue-50');
+            });
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+            });
+        });
+        dropZone.addEventListener('drop', (e) => {
+            const file = e.dataTransfer.files[0];
+            if (file && file.type === 'application/pdf') {
+                const fileInput = document.getElementById('pdfFile');
+                fileInput.files = e.dataTransfer.files;
+                handleFile(file);
+            } else {
+                showMessage('Please upload a PDF file', true);
+            }
+        });
+        document.getElementById('pdfFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function() {
+            updateQueueTable();
+        });
+
+        // Initial load and polling
+        updateQueueTable();
+        setInterval(updateQueueTable, 5000);
+    </script>
+</body>
+</html>
+
