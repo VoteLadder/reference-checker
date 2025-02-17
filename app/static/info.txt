@@ -1,34 +1,73 @@
-Reference Checker: A program to help academic paper review. The goal of this project is to take some of the hassle out of reviewing academic papers by providing an analysis of the sentences citing sources. In my experience with the program, the sentences that are verified with a ‘yes’ or ‘maybe’ are generally correct. Sentences with a ‘no’ verdict need further review and can sometimes yield interesting findings. 
+Reference Checker: 
+A program to help academic paper review. The goal of this project is to take some of the hassle out of reviewing academic papers by providing an analysis of the sentences citing sources. In my experience with the program, the sentences that are verified with a ‘yes’ or ‘maybe’ are generally correct. Sentences with a ‘no’ verdict need further review and can sometimes yield interesting findings. 
+
+
 The arbitration process is obviously made possible with the available API from various models. The challenge was finding a cost efficient yet effective model with a large enough context window. 
+
+
 Over the past year, there has been a great deal of progress on this front both in terms of context window and cost. The program now generally works and produces useful output. It can be even better if you are willing to dish out about $1 per article with more expensive models and that may be necessary for a more advanced version, but for now, as a proof of concept, the current, lower cost model, seems to work.
 
 Key Features:
+
+
 Document Processing:
+
 Processes academic papers which are  in PDF format.
 Extracts the main content and references section.
+
 Reference Analysis:
+
 Identifies citations within the paper.
 Organizes and maps references to their corresponding citations.
+
 Document Retrieval:
+
 Automatically downloads full-text PDFs of cited papers whenever available through an open source.
 Can be modified to work with paywalled systems in future versions for a more complete analysis
+
+
 Citation Verification:
+
 Employs AI to analyze both the citing text and cited paper.
 Delivers verdicts (yes/no/maybe) with explanations for each citation.
+
+
 Output Generation:
+
 Provides detailed results in JSON format.
 Generates a readable text summary of all verifications.
 Contains links to cited paper for easier access to the sources for further verification as needed.
 Best viewed through a word processing program or can be parsed as needed with another program.
 Includes a zip file with all downloaded reference papers for easier access for the reviewer.
+
+
 Benefits:
-Efficiency:
-Automates the citation checking process, saving time and effort.
-Verifies the accuracy of citations, ensuring research integrity.
-Accessibility:
-Makes referenced papers easily accessible, facilitating deeper understanding.
-Transparency:
-Provides clear documentation of citation validity, enhancing transparency.
-Scalability:
-Handles multiple documents simultaneously, supporting large-scale research projects.
+
+	Efficiency:
+
+	  Automates the citation checking process, saving time and effort.
+
+	  Verifies the accuracy of citations, ensuring research integrity.
+
+	
+	Accessibility:
+
+	  Makes referenced papers easily accessible, facilitating deeper understanding.
+
+
+	Transparency:
+
+	  Provides clear documentation of citation validity, enhancing transparency.
+
+
+	Scalability:
+	  
+	  Handles multiple documents simultaneously, supporting large-scale research projects.
+
+Obviously it would be feasible to have this model work with non-pulic articles to get a complete analysis, but I have chosen to disable that for the demo.
+
+Ideally, this program should be deployed by publishers and used to enhance the review process and increase factuality and efficiency.
+
+It would also be interesting to see how many 'mistakes' there are in different fields and publications ;-)
+
 
