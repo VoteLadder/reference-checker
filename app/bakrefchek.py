@@ -12,6 +12,8 @@ import fitz  # PyMuPDF
 from dotenv import load_dotenv
 load_dotenv()
 
+
+
 # ===========================
 # Global Configuration and Constants
 # ===========================
@@ -54,7 +56,7 @@ session = requests.Session()
 def extract_relevant_text(filepath, word_limit=5000):
     """
     Extract text in reverse order (starting from later pages) until a heading such as
-    "References", "Bibliography", or "Citations" is encountered.
+    "References", "Bibliography", or "Citations" is encountered. Content before that is returned.
     """
     doc = fitz.open(filepath)
     words = []
@@ -120,6 +122,7 @@ def clear_articles_directory(directory):
     os.makedirs(d, exist_ok=True)
     logger.debug("Articles directory cleared and reset.")
 
+
 def get_pmc_id_from_pubmed(title, author):
     """
     Get PMC ID from PubMed using article title and author.
@@ -129,18 +132,19 @@ def get_pmc_id_from_pubmed(title, author):
         "db": "pubmed",
         "term": f"{title}[Title] AND {author}[Author]",
         "retmode": "json",
-        "usehistory": "y"
+        "usehistory": "y"  # Use search history for better reliability
     }
     try:
         response = robust_request(PUBMED_ESEARCH_URL, params=params)
         if not response:
             return 0
-
+            
+        # Explicitly decode response content
         content = response.content.decode('utf-8')
         if not content.strip():
             logger.debug("Empty response from PubMed E-search")
             return 0
-
+            
         data = json.loads(content)
         idlist = data.get('esearchresult', {}).get('idlist', [])
         if idlist:
@@ -164,18 +168,19 @@ def get_pmc_id_from_pmid(pmid):
         "retmode": "json",
         "linkname": "pubmed_pmc",
         "tool": "ArticleAnalyzer",
-        "email": UNPAYWALL_EMAIL
+        "email": UNPAYWALL_EMAIL  # Add email for better API access
     }
     try:
         response = robust_request(PUBMED_ELINK_URL, params=params)
         if not response:
             return 0
-
+            
+        # Explicitly decode response content
         content = response.content.decode('utf-8')
         if not content.strip():
             logger.debug("Empty response from PubMed E-link")
             return 0
-
+            
         data = json.loads(content)
         linksets = data.get('linksets', [])
         if linksets:
@@ -191,21 +196,23 @@ def get_pmc_id_from_pmid(pmid):
         logger.debug(f"PubMed E-link error: {e}")
     return 0
 
-def robust_request(url, method="GET", headers=None, params=None, data=None,
-                   json_data=None, stream=False, timeout=REQUESTS_TIMEOUT,
-                   max_retries=MAX_RETRIES):
+def robust_request(url, method="GET", headers=None, params=None, data=None, 
+                  json_data=None, stream=False, timeout=REQUESTS_TIMEOUT, 
+                  max_retries=MAX_RETRIES):
     """
     Makes an HTTP request with improved error handling and response validation.
     """
     backoff = INITIAL_BACKOFF
     headers = headers or {}
+    
+    # Add user agent for better API compatibility
     headers.setdefault('User-Agent', 'ArticleAnalyzer/1.0')
-
+    
     for attempt in range(max_retries):
         try:
             if method.upper() == "GET":
                 response = session.get(
-                    url,
+                    url, 
                     headers=headers,
                     params=params,
                     stream=stream,
@@ -223,22 +230,23 @@ def robust_request(url, method="GET", headers=None, params=None, data=None,
             else:
                 raise ValueError(f"Unsupported method: {method}")
 
-            if response.status_code == 429:
+            # Handle various response codes
+            if response.status_code == 429:  # Rate limit
                 logger.debug(f"Rate limited for URL {url}. Waiting {backoff}s...")
                 time.sleep(backoff)
                 backoff *= BACKOFF_FACTOR
                 continue
-            elif response.status_code == 404:
+            elif response.status_code == 404:  # Not found
                 logger.debug(f"Resource not found: {url}")
                 return None
-            elif response.status_code >= 400:
+            elif response.status_code >= 400:  # Other errors
                 logger.debug(f"HTTP {response.status_code} for {url}")
                 if attempt < max_retries - 1:
                     time.sleep(backoff)
                     backoff *= BACKOFF_FACTOR
                     continue
                 return None
-
+                
             response.raise_for_status()
             return response
 
@@ -249,42 +257,70 @@ def robust_request(url, method="GET", headers=None, params=None, data=None,
                 backoff *= BACKOFF_FACTOR
                 continue
             return None
-
+            
     return None
+
 
 def clean_json_response(raw_text):
     """
-    Improved JSON cleaning function. First, it tries to load the raw text as JSON.
-    If that fails, it applies cleaning steps (e.g., removing markdown fences and
-    replacing Python None with null) and then validates the result.
+    Improved JSON cleaning function that handles more edge cases and properly escapes quotes.
     """
-    trimmed = raw_text.strip()
-    # If the trimmed text appears to be JSON, try loading it directly.
-    if trimmed.startswith("{") and trimmed.endswith("}"):
-        try:
-            json.loads(trimmed)
-            return trimmed
-        except Exception as e:
-            logger.debug(f"Direct JSON load failed: {e}. Attempting cleaning...")
-    # Remove markdown code fences (optional "json" specifier)
-    txt = re.sub(r"^```(?:json)?\s*", "", trimmed)
-    txt = re.sub(r"\s*```$", "", txt)
-    # Replace Python None with JSON null
-    txt = re.sub(r'\bNone\b', 'null', txt)
-    # Locate JSON boundaries
-    start = txt.find('{')
-    end = txt.rfind('}')
-    if start == -1 or end == -1:
-        raise ValueError("No JSON object found in response.")
-    content = txt[start:end+1]
-    # Normalize whitespace
-    content = re.sub(r'\s+', ' ', content).strip()
-    # Ensure property names are quoted (if needed)
-    content = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', content)
-    # Validate JSON structure
-    json.loads(content)
-    logger.debug(f"Cleaned JSON content: {content}")
-    return content
+    try:
+        # Remove any markdown code fences
+        txt = raw_text.strip()
+        if txt.startswith("```json"):
+            txt = txt[len("```json"):].strip()
+        elif txt.startswith("```"):
+            txt = txt[len("```"):].strip()
+        if txt.endswith("```"):
+            txt = txt[:-3].strip()
+
+        # Find the JSON object boundaries
+        start = txt.find('{')
+        end = txt.rfind('}')
+        if start == -1 or end == -1:
+            raise ValueError("No JSON object found in response.")
+        
+        content = txt[start:end+1]
+        
+        # Replace problematic characters
+        import re
+        
+        # First, escape any unescaped quotes within values
+        def fix_quotes(match):
+            text = match.group(1)
+            # Replace all types of quotes with standard double quotes
+            text = text.replace('"', '\\"')  # Escape existing double quotes
+            text = text.replace("'", "'")    # Replace single quotes
+            return f'"{text}"'
+        
+        # Fix quotes within text values
+        content = re.sub(r'"([^"\\]*(?:\\.[^"\\]*)*)"', fix_quotes, content)
+        
+        # Replace any remaining problematic characters
+        content = content.replace('\n', ' ')
+        content = content.replace('\r', ' ')
+        content = re.sub(r'\s+', ' ', content)
+        
+        # Ensure property names are properly quoted
+        content = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', content)
+        
+        # Remove any non-ASCII characters
+        content = content.encode('ascii', 'ignore').decode('ascii')
+        
+        # Final cleanup
+        content = content.strip()
+        
+        # Validate JSON structure before returning
+        import json
+        json.loads(content)  # This will raise an exception if the JSON is invalid
+        
+        logger.debug(f"Cleaned JSON content: {content}")
+        return content
+        
+    except Exception as e:
+        logger.debug(f"Error in clean_json_response: {str(e)}\nProblematic text: {txt}")
+        raise
 
 def extract_text_from_pdf(pdf_path):
     """Extract full text from a PDF using PyMuPDF."""
@@ -354,10 +390,11 @@ def download_pdf(pdf_url, output_path):
                 return True
             except Exception as e:
                 logger.debug(f"Error saving PDF to {output_path}: {e}")
-        else:
-            logger.debug(f"Failed retrieving PDF from {pdf_url}")
-            return False
+    else:
+        logger.debug(f"Failed retrieving PDF from {pdf_url}")
     return False
+
+
 
 def get_article_pdf(ref, output_dir, ref_num):
     title = ref.get('title', '')
@@ -374,7 +411,7 @@ def get_article_pdf(ref, output_dir, ref_num):
             if download_pdf(pdf_url, pdf_path):
                 ref['doi_found'] = True
                 ref['download_source'] = 'Unpaywall'
-                ref['web_address'] = pdf_url
+                ref['web_address'] = pdf_url  # <-- Save the web address for this article.
                 return True
             else:
                 logger.debug(f"Unpaywall download failed for ref {ref_num}")
@@ -391,7 +428,7 @@ def get_article_pdf(ref, output_dir, ref_num):
         if download_pdf(pdf_url, pdf_path):
             ref['doi_found'] = False
             ref['download_source'] = 'PMC'
-            ref['web_address'] = pdf_url
+            ref['web_address'] = pdf_url  # <-- Save the web address for this article.
             return True
         else:
             logger.debug(f"PMC download failed for ref {ref_num}")
@@ -441,6 +478,9 @@ def call_main_api(payload, api_url=MAIN_API_URL, api_key=MAIN_API_KEY, timeout=R
         "Authorization": f"Bearer {api_key}"
     }
     payload.setdefault("model", MAIN_MODEL)
+    # payload.setdefault("temperature", 1)
+    # payload.setdefault("top_p", 1)
+    # payload.setdefault("repetition_penalty", 1)
     try:
         response = session.post(api_url, headers=headers, json=payload, timeout=timeout)
         if response.status_code == 429:
@@ -453,7 +493,7 @@ def call_main_api(payload, api_url=MAIN_API_URL, api_key=MAIN_API_KEY, timeout=R
         return ret
     except Exception as e:
         logger.debug(f"Main API call exception: {e}")
-        return {}
+    return {}
 
 def call_verification_api(payload, api_url=VERIF_API_URL, api_key=VERIF_API_KEY, timeout=REQUESTS_TIMEOUT):
     headers = {
@@ -476,48 +516,45 @@ def call_verification_api(payload, api_url=VERIF_API_URL, api_key=VERIF_API_KEY,
         return ret
     except Exception as e:
         logger.debug(f"Verification API call exception: {e}")
-        return {}
+    return {}
 
 # ===========================
 # Main Content & References Processing
 # ===========================
 def process_main_content(text):
     """
-    Process the main article text to extract only sentences with citation references.
-    The prompt instructs the model to output ONLY a valid JSON object with the following format:
-    {
-      "sentences": [
-         {"sentence": "Full sentence text", "references": [1,2]}
-      ]
-    }
-    Do not include any extra text or markdown formatting.
+    Modified main content processing with improved JSON handling
     """
     prompt = (
-        "Analyze the provided article text and identify only those sentences that include citation references. "
-        "For each identified sentence, output the full sentence text and a list of reference numbers (as integers) mentioned in it. "
-        "Output ONLY a valid JSON object that strictly follows this format:\n"
-        '{"sentences": [{"sentence": "Full sentence text", "references": [1,2]}]}\n'
-        "Do not include any additional text or markdown formatting."
+        "Analyze the following article text and extract only the sentences that include citation references. "
+        "Output a JSON object with this exact format:\n"
+        '{"sentences": [{"sentence": "Full sentence text", "references": [1,2]}]}'
+        "\nEnsure all text values use standard double quotes (\") and all property names are quoted."
     )
-
+    
     content = f"[TEXT]{text}[/TEXT]\n\n{prompt}"
     payload = {
         "messages": [{"role": "user", "content": content}],
-        "temperature": 0.05
+        "temperature": 0.05  # Lower temperature for more consistent output
     }
-
+    
     try:
         logger.debug("Sending main content to main provider ...")
         response = call_main_api(payload)
         raw = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+        
         logger.debug(f"Raw main API response: {response}")
         cleaned = clean_json_response(raw)
         logger.debug(f"Cleaned main content JSON: {cleaned}")
-
+        
+        # Parse the cleaned JSON
         data = json.loads(cleaned)
+        
+        # Validate the structure
         if not isinstance(data, dict) or "sentences" not in data:
             raise ValueError("Invalid JSON structure: missing 'sentences' key")
-
+        
+        # Validate and clean each sentence
         sentences = []
         for sent in data["sentences"]:
             if isinstance(sent, dict) and "sentence" in sent and "references" in sent:
@@ -525,50 +562,49 @@ def process_main_content(text):
                     "sentence": str(sent["sentence"]),
                     "references": [int(ref) for ref in sent["references"]]
                 })
-
+        
         return {"sentences": sentences}
-
+        
     except Exception as e:
         logger.debug(f"Error processing main content: {str(e)}")
         return {"sentences": []}
 
 def process_references_section(text):
     """
-    Process the references text to extract full title and first author for each reference.
-    The prompt instructs the model to output ONLY a valid JSON object with the following format:
-    {
-      "references": {
-          "1": {"title": "Full Title", "first_author": "Author", "pmc_id": "0"}
-      },
-      "total_references_extracted": 0
-    }
-    Do not include any extra text or markdown formatting.
+    Modified references processing with improved JSON handling
     """
     prompt = (
-        "Extract all references from the provided text. For each reference, extract the full title and the first author. "
-        "Output ONLY a valid JSON object that strictly follows this format:\n"
-        '{"references": {"1": {"title": "Full Title", "first_author": "Author", "pmc_id": "0"}}, "total_references_extracted": 0}\n'
-        "Do not include any additional text or markdown formatting."
+        "Extract all references from the following text. For each reference, extract the full title "
+        "and the first author. Output a JSON object with this exact format:\n"
+        '{"references": {"1": {"title": "Full Title", "first_author": "Author", '
+        '"pmc_id": "0"}}, "total_references_extracted": 0}'
+        "\nEnsure all text values use standard double quotes (\") and all property names are quoted."
     )
-
+    
     content = f"[REFERENCES]{text}[/REFERENCES]\n\n{prompt}"
     payload = {
         "messages": [{"role": "user", "content": content}],
         "temperature": 0.05
     }
-
+    
     try:
-        logger.debug("Sending references section to verification provider ...")
+        logger.debug("Sending references section to main provider ...")
+        #response = call_main_api(payload)
         response = call_verification_api(payload)
         raw = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+        
         logger.debug(f"Raw reference API response: {raw}")
         cleaned = clean_json_response(raw)
         logger.debug(f"Cleaned references JSON: {cleaned}")
-
+        
+        # Parse the cleaned JSON
         data = json.loads(cleaned)
+        
+        # Validate the structure
         if not isinstance(data, dict) or "references" not in data:
             raise ValueError("Invalid JSON structure: missing 'references' key")
-
+        
+        # Clean and validate each reference
         references = {}
         for ref_id, ref in data["references"].items():
             if isinstance(ref, dict) and "title" in ref and "first_author" in ref:
@@ -577,12 +613,12 @@ def process_references_section(text):
                     "first_author": str(ref["first_author"]),
                     "pmc_id": str(ref.get("pmc_id", "0"))
                 }
-
+        
         return {
             "references": references,
             "total_references_extracted": len(references)
         }
-
+        
     except Exception as e:
         logger.debug(f"Error processing references: {str(e)}")
         return {"references": {}, "total_references_extracted": 0}
@@ -592,49 +628,42 @@ def process_references_section(text):
 # ===========================
 def verify_sentences_batch(article_text, sentences):
     """
-    Verify each claim (sentence) against the provided article excerpt.
-    For each claim, determine if the article directly supports it by outputting a verdict of 'yes', 'no', or 'maybe'
-    along with a brief explanation.
-    Output ONLY a valid JSON object with the following format:
-    {
-      "results": [
-         {"sentence": "claim text", "verdict": "yes/no/maybe", "explanation": "explanation text"}
-      ]
-    }
-    Do not include any extra text or markdown formatting.
+    Modified verification function with improved JSON handling
     """
     max_chars = 20000
     article_excerpt = article_text[:max_chars]
-
+    
     prompt = (
-        "Verify the following claims using the provided article excerpt. "
-        "For each claim, determine if the article directly supports it by outputting a verdict ('yes', 'no', or 'maybe') "
-        "along with a brief explanation. "
-        "Output ONLY a valid JSON object that strictly follows this format:\n"
+        "Verify the following claims against the provided article excerpt. "
+        "For each claim, determine if the article directly supports it (yes/no/maybe) "
+        "and give a brief explanation. Use only single quotes within text values. "
+        "Output a JSON object in this exact format:\n"
         '{\n  "results": [\n    {\n      "sentence": "claim text",\n      "verdict": "yes/no/maybe",\n'
         '      "explanation": "explanation text"\n    }\n  ]\n}\n'
-        "Do not include any additional text or markdown formatting."
     )
-
+    
     claims_text = "\n".join(f"Claim {i+1}: {sentence}" for i, sentence in enumerate(sentences))
     content = f"Article Excerpt:\n{article_excerpt}\n\nClaims to Verify:\n{claims_text}\n\n{prompt}"
-
+    
     payload = {
         "messages": [{"role": "user", "content": content}],
         "temperature": 0.05
     }
-
+    
     try:
         logger.debug("Sending batch verification request.")
         response = call_verification_api(payload)
         raw = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+        
         logger.debug(f"Raw verification response: {raw}")
         cleaned = clean_json_response(raw)
         logger.debug(f"Cleaned verification JSON: {cleaned}")
-
+        
+        # Parse the cleaned JSON
         data = json.loads(cleaned)
         results = data.get("results", [])
-
+        
+        # Validate the results
         validated_results = []
         for result in results:
             if isinstance(result, dict) and all(k in result for k in ["sentence", "verdict", "explanation"]):
@@ -643,24 +672,25 @@ def verify_sentences_batch(article_text, sentences):
                     "verdict": str(result["verdict"]).lower(),
                     "explanation": str(result["explanation"])
                 })
-
+        
         return validated_results
     except json.JSONDecodeError as e:
-        logger.debug(f"JSON decode error in verification: {str(e)}")
+        logger.debug(f"JSON decode error in verification: {str(e)}\nProblematic JSON: {cleaned}")
         return []
     except Exception as e:
         logger.debug(f"Error in verification: {str(e)}")
         return []
-
+    
 def process_articles_with_verification(articles_dir, sentences_data):
     """
-    Process article PDFs and batch verify claims against each article.
+    Improved version with better error handling and verification processing
     """
+    # Build mapping from reference id to claims
     ref_map = defaultdict(list)
     for sent in sentences_data:
         for ref in sent.get("references", []):
             ref_map[str(ref)].append(sent["sentence"])
-
+    
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         future_map = {}
         for ref_id, claims in ref_map.items():
@@ -675,7 +705,7 @@ def process_articles_with_verification(articles_dir, sentences_data):
                     logger.debug(f"Error extracting text from PDF {ref_id}: {str(e)}")
             else:
                 logger.debug(f"Article PDF for ref {ref_id} not found.")
-
+        
         for future in as_completed(future_map):
             ref_id, claims = future_map[future]
             try:
@@ -692,6 +722,7 @@ def process_articles_with_verification(articles_dir, sentences_data):
                                 })
             except Exception as e:
                 logger.debug(f"Error processing verification results for ref {ref_id}: {str(e)}")
+                # Add a failed verification entry
                 for claim in claims:
                     for sent in sentences_data:
                         if sent["sentence"] == claim:
@@ -700,7 +731,7 @@ def process_articles_with_verification(articles_dir, sentences_data):
                                 "verdict": "error",
                                 "explanation": f"Verification failed: {str(e)}"
                             })
-
+    
     return sentences_data
 
 def format_json_as_text(json_data):
@@ -708,14 +739,20 @@ def format_json_as_text(json_data):
     Convert the JSON data into a readable text format.
     """
     text_output = []
+    
+    # Add header
     text_output.append("REFERENCE CHECKER RESULTS")
     text_output.append("=" * 50 + "\n")
+    
+    # Process sentences section
     text_output.append("CITED SENTENCES AND VERIFICATIONS")
     text_output.append("-" * 50)
+    
     for i, sentence in enumerate(json_data.get("sentences", []), 1):
         text_output.append(f"\nSentence {i}:")
         text_output.append(f"Content: {sentence.get('sentence', '')}")
         text_output.append(f"Referenced in: {', '.join(map(str, sentence.get('references', [])))}")
+        
         if "verifications" in sentence:
             text_output.append("\nVerifications:")
             for v in sentence["verifications"]:
@@ -723,8 +760,11 @@ def format_json_as_text(json_data):
                 text_output.append(f"    Verdict: {v.get('verdict', '')}")
                 text_output.append(f"    Explanation: {v.get('explanation', '')}")
         text_output.append("-" * 30)
+    
+    # Process references section
     text_output.append("\n\nREFERENCE DETAILS")
     text_output.append("-" * 50)
+    
     for ref_id, ref in json_data.get("references", {}).items():
         text_output.append(f"\nReference {ref_id}:")
         text_output.append(f"Title: {ref.get('title', '')}")
@@ -735,6 +775,7 @@ def format_json_as_text(json_data):
         if ref.get('web_address'):
             text_output.append(f"Web Address: {ref['web_address']}")
         text_output.append("-" * 30)
+    
     return "\n".join(text_output)
 
 # ===========================
@@ -743,38 +784,43 @@ def format_json_as_text(json_data):
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     clear_articles_directory(OUTPUT_DIR)
-
+    
     main_text = extract_relevant_text(PDF_FILEPATH, word_limit=WORD_LIMIT)
     references_text = extract_references_section(PDF_FILEPATH)
-
+    
     if not main_text:
         logger.debug("Main text extraction failed.")
         return
     if not references_text:
         logger.debug("References section extraction failed.")
         return
-
+    
     logger.debug("Extracted main content and references from PDF.")
-
+    
+    # Process main content and references using the MAIN provider.
     main_data = process_main_content(main_text)
     sentences_data = main_data.get("sentences", [])
     ref_data = process_references_section(references_text)
     references = ref_data.get("references", {})
-
+    
+    # Resolve PMC IDs for each reference.
     logger.debug("Resolving PMC IDs...")
     for key, ref in references.items():
         title = ref.get('title', '')
         first_author = ref.get('first_author', '')
         pmc = get_pmc_id_from_pubmed(title, first_author)
         ref['pmc_id'] = str(pmc) if pmc else "0"
-
+    
+    # Download article PDFs concurrently.
     logger.debug("Downloading article PDFs ...")
     get_all_article_pdfs(references, OUTPUT_DIR)
-
+    
+    # Batch verify sentences using the VERIFICATION provider.
     logger.debug("Batch verifying sentences against article texts ...")
     articles_dir = os.path.join(OUTPUT_DIR, "articles")
     sentences_data = process_articles_with_verification(articles_dir, sentences_data)
-
+    
+    # Save final output (generic file name).
     final_output = {"sentences": sentences_data, "references": references}
     out_path = os.path.join(OUTPUT_DIR, "verified.json")
     try:
@@ -783,13 +829,17 @@ def main():
         logger.debug(f"Final output saved to: {out_path}")
     except Exception as e:
         logger.debug(f"Output save error: {e}")
-
+    
+    # Generate a text document of all citation confirmation verifications.
+    # This text file will list for each sentence any associated verification details.
     confirmations_txt_path = os.path.join(OUTPUT_DIR, "confirmations.txt")
     try:
+        # First save the JSON as before
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(final_output, f, indent=2, ensure_ascii=False)
         logger.debug(f"Final output saved to: {out_path}")
-
+        
+        # Now create the text version
         text_output = format_json_as_text(final_output)
         text_path = os.path.join(OUTPUT_DIR, "confirmations.txt")
         with open(text_path, "w", encoding="utf-8") as f:
@@ -797,9 +847,9 @@ def main():
         logger.debug(f"Text format output saved to: {text_path}")
     except Exception as e:
         logger.debug(f"Output save error: {e}")
-
+    
+    # Zip downloaded articles.
     save_articles_zip(OUTPUT_DIR)
 
 if __name__ == "__main__":
     main()
-

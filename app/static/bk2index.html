@@ -18,8 +18,7 @@
     <style>
         /* Global font */
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #1F2937; /* Slightly softer than pure black */
+            font-family: 'Inter', sans-serif;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
@@ -85,101 +84,9 @@
             color: #555;
             cursor: pointer;
         }
-          /* Add these to your existing styles */
-          @media (hover: none) {
-            button, a {
-              min-height: 44px; /* Minimum touch target size */
-              min-width: 44px;
-            }
-
-            .touch-feedback:active {
-              transform: scale(0.98);
-              transition: transform 0.1s;
-            }
-          }
-
-          /* Improve touch scrolling */
-          .overflow-y-auto {
-            -webkit-overflow-scrolling: touch;
-        }
-        /* Updated styles to add to the existing <style> section */
-        /* Enhance the gradient header */
-        .bg-gradient-to-r {
-            background: linear-gradient(135deg, #4F46E5 0%, #2563EB 100%);
-        }
-
-        /* Enhanced table styles */
-        .table-header {
-            background-color: #F9FAFB;
-            border-bottom: 2px solid #E5E7EB;
-        }
-
-        /* Softer shadows for cards */
-        .shadow-md {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08),
-                        0 2px 4px -1px rgba(0, 0, 0, 0.04);
-        }
-
-        /* More prominent hover states */
-        .hover\:shadow-lg:hover {
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08),
-                        0 4px 6px -2px rgba(0, 0, 0, 0.04);
-            transition: all 0.2s ease;
-        }
-
-        /* Smoother button transitions */
-        button {
-            transition: all 0.2s ease-in-out;
-        }
-
-        /* Enhanced search input */
-        .search-input {
-            background-color: #F9FAFB;
-            border: 1px solid #E5E7EB;
-            transition: all 0.2s ease;
-        }
-
-        .search-input:focus {
-            background-color: white;
-            border-color: #3B82F6;
-        }
-
-        /* Enhanced status badges */
-        .status-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-weight: 500;
-        }
-
-        /* Improved scroll aesthetics */
-        .overflow-y-auto {
-            scrollbar-width: thin;
-            scrollbar-color: #CBD5E1 transparent;
-        }
-
-        .overflow-y-auto::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .overflow-y-auto::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .overflow-y-auto::-webkit-scrollbar-thumb {
-            background-color: #CBD5E1;
-            border-radius: 3px;
-        }
-
-        /* Enhance focus states */
-        .focus\:ring:focus {
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
-            outline: none;
-        }
-
-
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col text-base sm:text-sm md:text-base">
+<body class="bg-gray-100 min-h-screen flex flex-col">
     <!-- Gradient Header Section -->
     <header class="relative bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-8 text-center shadow-lg">
         <!-- SmartAngio.com button in top right -->
@@ -191,22 +98,16 @@
         <h1 class="text-4xl font-bold mb-2">Reference Checker</h1>
         <p class="text-lg">Upload a PDF to verify citations and analyze references</p>
     </header>
-
-    <!-- Processing Stats Section -->
-    <section class="container mx-auto px-6 mt-8">
-        <div id="statsContainer"></div>
-    </section>
-
     <div class="container mx-auto px-6 py-10 flex-grow">
         <!-- Combined Info and Upload Section -->
         <section class="mb-12 flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-6">
             <!-- Info Section -->
-            <div class="md:w-1/2 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-8 flex flex-col justify-between">
+            <div class="md:w-1/2 bg-white rounded-lg shadow-md p-8 flex flex-col justify-between">
                 <h2 class="text-2xl font-semibold mb-6 text-gray-800">Information</h2>
                 <div id="infoBox" class="flex-grow"></div>
             </div>
             <!-- Upload Section -->
-            <div class="md:w-1/2 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-8 flex flex-col justify-between">
+            <div class="md:w-1/2 bg-white rounded-lg shadow-md p-8 flex flex-col justify-between">
                 <h2 class="text-2xl font-semibold text-gray-800 mb-6">Upload PDF</h2>
                 <div class="flex-grow">
                     <form id="uploadForm" class="space-y-6">
@@ -215,7 +116,7 @@
                             <div class="space-y-3">
                                 <i class="fas fa-cloud-upload-alt text-5xl text-gray-500"></i>
                                 <p class="text-gray-700 text-lg">Drag and drop your PDF here or</p>
-                                <button type="button" class="px-5 py-3 bg-blue-600 text-white rounded-md shadow-md hover:bg-blue-700 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                                <button type="button" class="px-5 py-3 bg-blue-600 text-white rounded-md shadow-md hover:bg-blue-700 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50" onclick="document.getElementById('pdfFile').click()">
                                     Browse Files
                                 </button>
                             </div>
@@ -237,36 +138,28 @@
                 <div id="uploadMessage" class="mt-6 hidden"></div>
             </div>
         </section>
-        <!-- Updated Processing Queue Section -->
+        <!-- Processing Queue Section -->
         <section class="w-full max-w-4xl mx-auto">
-
-
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                 <h2 class="text-2xl font-semibold text-gray-800">Processing Queue</h2>
                 <div class="w-full sm:w-64">
                     <div class="relative">
-                        <input
-                            type="text"
-                            id="searchInput"
-                            class="search-input w-full px-4 py-2 rounded-lg pl-10 pr-4 focus:ring focus:outline-none focus:ring-blue-500"
-                            placeholder="Search documents content..."
-                        />
+                        <input type="text" id="searchInput" class="w-full px-4 py-2 border border-gray-300 rounded-lg pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search articles..." />
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i class="fas fa-search text-gray-400"></i>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <!-- Updated Queue Table -->
-            <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
+            <!-- Fixed width table container -->
+            <div class="bg-white rounded-lg shadow-md">
                 <div class="max-h-80 overflow-y-auto">
-                    <table class="w-full">
-                        <thead class="bg-gray-50 sticky top-0 table-header">
+                    <table class="w-full table-fixed">
+                        <thead class="bg-gray-50 sticky top-0">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
+                                <th class="w-[45%] px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Document</th>
+                                <th class="w-[25%] px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Status</th>
+                                <th class="w-[30%] px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-left">Progress</th>
                             </tr>
                         </thead>
                         <tbody id="queueTableBody" class="bg-white divide-y divide-gray-200">
@@ -278,7 +171,7 @@
         </section>
         <!-- Updated Acknowledgments Section -->
         <section class="bg-gray-200 text-center py-8 mt-10">
-            <p class="mt-2 text-lg">Thanks to OpenAI for a grant enabling this project!</p>
+            <p class="mt-2 text-lg">Thanks to OpenAI for a Grant Enabling this Project!</p>
             <div class="mt-4 flex justify-center space-x-6 items-center">
                 <!-- LinkedIn -->
                 <a href="https://www.linkedin.com/in/emil-cohen-178199b/" target="_blank" class="text-blue-700 hover:text-blue-900">
@@ -294,10 +187,8 @@
                 <a href="mailto:cohenemil@gmail.com" class="text-red-600 hover:text-red-800">
                     <i class="fas fa-envelope fa-2x"></i>
                 </a>
-
-            </div>
-             <div class="text-center mt-4">
-                <a href="https://forms.gle/FwsQU1kBdF2YKbfV6" target="_blank" class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:ring focus:ring-blue-500 focus:ring-opacity-50">
+                <!-- Google Forms -->
+                <a href="https://forms.gle/FwsQU1kBdF2YKbfV6" target="_blank" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                     <i class="fas fa-hands-helping mr-2"></i>
                     Help Improve This Project
                 </a>
@@ -312,7 +203,6 @@
     <script type="text/babel">
         const baseURL = "/reference_checker/api";
 
-        // Updated QueueRow Component
         const QueueRow = ({ requestId, data, onSummaryFetched }) => {
           const formatDate = (dateString) => {
             if (!dateString) return '';
@@ -320,108 +210,76 @@
           };
 
           return (
-            <tr class="hover:bg-gray-50">
-              <td class="px-6 py-4">
-                <div class="flex flex-col">
-                  <div class="text-sm font-medium text-gray-900" title={data.original_filename}>
+            <tr className="hover:bg-gray-50 border-b border-gray-200">
+              <td className="px-3 py-2">
+                <div className="w-full min-w-0">
+                  <div className="text-sm font-medium text-gray-900 truncate" title={data.original_filename}>
                     {data.original_filename}
                   </div>
-                  <div class="text-sm text-gray-500">
+                  <div className="text-xs text-gray-500 truncate">
                     {formatDate(data.created_at)}
                   </div>
                   {data.status === 'completed' && (
-                    <div class="flex space-x-2 mt-2">
+                    <div className="flex flex-wrap gap-2 mt-2">
                       <button
                         onClick={() => openAnalysisWindow(requestId, data.original_filename)}
-                        class="bg-indigo-600 text-white text-xs px-3 py-2 rounded hover:bg-indigo-700"
+                        className="inline-flex flex-col items-center justify-center px-3 py-2 bg-indigo-600 text-white text-xs font-medium rounded hover:bg-indigo-700 transition-colors duration-150 w-24"
                       >
-                        View Analysis
+                        <i className="fas fa-file-alt mb-1"></i>
+                        <span>View</span>
+                        <span>Analysis</span>
                       </button>
                       <button
                         onClick={() => downloadFile(requestId, 'articles.zip')}
-                        class="bg-green-600 text-white text-xs px-3 py-2 rounded hover:bg-green-700"
+                        className="inline-flex flex-col items-center justify-center px-3 py-2 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors duration-150 w-24"
                       >
-                        References Zip
+                        <i className="fas fa-file-archive mb-1"></i>
+                        <span>References</span>
+                        <span>Zip</span>
                       </button>
                       <button
                         onClick={() => downloadFile(requestId, 'verified.json')}
-                        class="bg-blue-600 text-white text-xs px-3 py-2 rounded hover:bg-blue-700"
+                        className="inline-flex flex-col items-center justify-center px-3 py-2 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors duration-150 w-24"
                       >
-                        Raw Data JSON
-                      </button>
-                      <button
-                        disabled
-                        class="bg-gray-300 text-gray-600 text-xs px-3 py-2 rounded cursor-not-allowed"
-                      >
-                        Upload Non-Public
+                        <i className="fas fa-download mb-1"></i>
+                        <span>Raw Data</span>
+                        <span>JSON</span>
                       </button>
                     </div>
                   )}
                 </div>
               </td>
-              <td class="px-6 py-4">
-                <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium status-badge ${
-                  data.status === 'completed'
-                    ? 'bg-green-100 text-green-800'
-                    : data.status === 'error'
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {data.status === 'completed' && <i class="fas fa-check mr-1"></i>}
-                  {data.status === 'error' && <i class="fas fa-exclamation-circle mr-1"></i>}
-                  {data.status}
-                </span>
+              <td className="px-3 py-2">
+                <div className="text-center sm:text-left">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    data.status === 'completed'
+                      ? 'bg-green-100 text-green-800'
+                      : data.status === 'error'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {data.status === 'completed' && <i className="fas fa-check mr-1"></i>}
+                    {data.status === 'error' && <i className="fas fa-exclamation-circle mr-1"></i>}
+                    {data.status}
+                  </span>
+                </div>
               </td>
-              <td class="px-6 py-4 text-sm text-gray-500">
-                {data.progress.stage || 'Completed'}
+              <td className="px-3 py-2">
+                <div className="flex flex-col space-y-2">
+                  <div className="text-xs text-gray-500 truncate">
+                    {data.progress.stage || 'Completed'}
+                  </div>
+                  {data.status === 'completed' && (
+                    <button
+                      disabled
+                      className="text-xs px-3 py-1.5 bg-gray-300 text-gray-600 rounded cursor-not-allowed whitespace-normal leading-tight min-h-[40px] flex items-center justify-center"
+                    >
+                      Upload non‑public articles
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
-          );
-        };
-
-        const ProcessingStats = () => {
-          const [stats, setStats] = useState({
-            totalProcessed: 0,
-            averageTime: '0'
-          });
-
-          useEffect(() => {
-            // In practice, this would fetch from your API
-            const fetchStats = async () => {
-              try {
-                const response = await fetch(`${baseURL}/stats`);
-                const data = await response.json();
-                setStats(data);
-              } catch (error) {
-                console.error('Error fetching stats:', error);
-              }
-            };
-
-            fetchStats();
-            const interval = setInterval(fetchStats, 30000); // Update every 30 seconds
-
-            return () => clearInterval(interval);
-          }, []);
-
-          return (
-            <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-4 mb-6">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-                  <i class="fas fa-file-alt text-blue-600 w-8 h-8"></i>
-                  <div>
-                    <p class="text-sm text-gray-500">Total Documents Processed</p>
-                    <p class="text-2xl font-bold text-gray-900">{stats.totalProcessed}</p>
-                  </div>
-                </div>
-                <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-                  <i class="fas fa-clock text-green-600 w-8 h-8"></i>
-                  <div>
-                    <p class="text-sm text-gray-500">Average Processing Time</p>
-                    <p class="text-2xl font-bold text-gray-900">{stats.averageTime} min</p>
-                  </div>
-                </div>
-              </div>
-            </div>
           );
         };
 
@@ -536,7 +394,7 @@
                 const rows = Object.entries(newQueueData)
                     .filter(([requestId, request]) => {
                         const summary = summariesCache[requestId] || ''; // summary is not used in filter currently
-                        let searchableText = [
+                        const searchableText = [
                             request.article_title,
                             request.original_filename,
                             summary, // summary is not used in filter currently
@@ -619,8 +477,6 @@
             }
         });
         document.getElementById('searchInput').addEventListener('input', debounce(updateQueueTable, 300));
-
-
         function debounce(func, wait) {
             let timeout;
             return function executedFunction(...args) {
@@ -762,7 +618,6 @@
             document.getElementById('infoBox').innerHTML = infoHTML;
         }
 
-        ReactDOM.createRoot(document.getElementById('statsContainer')).render(<ProcessingStats />);
         loadInfoText();
         updateQueueTable();
         setInterval(updateQueueTable, 10000);
