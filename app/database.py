@@ -17,13 +17,14 @@ class ProcessingRequest(Base):
     __tablename__ = "processing_requests"
 
     request_id = Column(String, primary_key=True)
-    article_title = Column(String)  # Add this line
-    status = Column(String)
-    progress = Column(JSON)
+    status = Column(String, nullable=False)
+    progress = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    output_dir = Column(String)
-    original_filename = Column(String)
+    output_dir = Column(String, nullable=False)
+    original_filename = Column(String, nullable=False)
+    article_title = Column(String)
+    summary = Column(String)
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
@@ -34,3 +35,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

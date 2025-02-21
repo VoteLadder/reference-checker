@@ -195,7 +195,7 @@
             </a>
         </div>
         <h1 class="text-4xl font-bold mb-2">Reference Checker</h1>
-        <p class="text-lg">Upload a PDF to verify citations against their references. Download a zip file of all publicly available articles in the reference section.</p>
+        <p class="text-lg">Upload a PDF to verify citations and analyze references. Download a zip file of all publicly available articles in the reference section</p>
     </header>
 
     <!-- Processing Stats Section -->
@@ -310,7 +310,7 @@
                                                 disabled
                                                 class="bg-gray-300 text-gray-600 text-xs px-3 py-2 rounded cursor-not-allowed"
                                             >
-                                                Upload Non-Public & Re-Run
+                                                Upload Non-Public
                                             </button>
                                         </div>
                                     </div>
@@ -366,6 +366,8 @@
 
         // Updated QueueRow Component
         const QueueRow = ({ requestId, data, onSummaryFetched }) => {
+            const [showSummary, setShowSummary] = React.useState(false);
+
             const formatDate = (dateString) => {
                 if (!dateString) return '';
                 return new Date(dateString).toLocaleString();
@@ -387,12 +389,12 @@
                             </div>
                             {data.status === 'completed' && (
                                 <div class="flex flex-wrap gap-2 mt-2">
-                                    {/* Summary Button - Opens new window */}
+                                    {/* Summary Button */}
                                     <button
-                                        onClick={() => openSummaryWindow(requestId, data.original_filename, data.summary)}
+                                        onClick={() => setShowSummary(!showSummary)}
                                         class="bg-purple-600 text-white text-xs px-3 py-2 rounded hover:bg-purple-700"
                                     >
-                                        View Summary
+                                        {showSummary ? 'Hide Summary' : 'View Summary'}
                                     </button>
                                     <button
                                         onClick={() => openAnalysisWindow(requestId, data.original_filename)}
@@ -416,8 +418,15 @@
                                         disabled
                                         class="bg-gray-300 text-gray-600 text-xs px-3 py-2 rounded cursor-not-allowed"
                                     >
-                                        Upload Non-Public & Re-Run
+                                        Upload Non-Public
                                     </button>
+                                </div>
+                            )}
+                            {/* Show summary section when button is clicked */}
+                            {showSummary && data.summary && (
+                                <div class="text-sm text-gray-600 p-4 bg-gray-50 rounded-lg mt-2">
+                                    <div class="font-semibold mb-2">Article Summary:</div>
+                                    <div class="whitespace-pre-wrap">{data.summary}</div>
                                 </div>
                             )}
                         </div>
@@ -610,58 +619,6 @@
             }
         }
 
-        // New global function to open the summary in a new window
-        async function openSummaryWindow(requestId, originalFilename, summaryText) {
-            try {
-                // Remove .pdf extension if present and get first 10 letters
-                const firstTenLetters = originalFilename.replace('.pdf', '').substring(0, 10);
-                const summaryFileName = `${firstTenLetters}_summary.txt`;
-
-                const newWindow = window.open('', '_blank', 'width=600,height=400'); // Smaller height for summary
-
-                newWindow.document.write(`
-                    <html>
-                        <head>
-                            <title>Summary - ${originalFilename}</title>
-                            <style>
-                                body { font-family: 'Inter', sans-serif; padding: 20px; }
-                                pre { white-space: pre-wrap; word-wrap: break-word; }
-                                .download-button {
-                                    display: inline-block;
-                                    width: auto;
-                                    padding: 0.75rem 1.5rem;
-                                    margin: 1rem 0;
-                                    background: #4CAF50;
-                                    color: white;
-                                    text-decoration: none;
-                                    border-radius: 6px;
-                                    text-align: center;
-                                    font-size: 1rem;
-                                    font-weight: 600;
-                                }
-                                .download-button:hover {
-                                    background: #45a049;
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <h1>Summary - ${originalFilename}</h1>
-                            <a href="data:text/plain;charset=utf-8,${encodeURIComponent(summaryText)}"
-                               class="download-button"
-                               download="${summaryFileName}">
-                                Download Summary
-                            </a>
-                            <pre>${summaryText}</pre>
-                        </body>
-                    </html>
-                `);
-                newWindow.document.close();
-            } catch (error) {
-                console.error('Error opening summary window:', error);
-                showMessage(`Failed to load summary: ${error.message}`, true);
-            }
-        }
-
 
         // Cache for summaries - not used anymore but kept for potential future use or cleanup later
         let summariesCache = {};
@@ -811,10 +768,10 @@
                     <h3 class="text-xl font-semibold text-gray-800">Key Features</h3>
                     <h4 class="text-lg font-semibold text-gray-800">Document Processing</h4>
                     <ul class="list-disc ml-6">
-                        <li><strong>The program generally works best with numbered citations(for now)</strong></li>
+                        <li><strong>***Currently the program has limitation when processing longer articles.***</strong></li>
                         <li>Handles academic papers in PDF format</li>
                         <li>Intelligent extraction of main content and references</li>
-                        <li>Detailed parsing of various citation styles</li>
+                        <li>Robust parsing of various citation styles</li>
                     </ul>
                     <h4 class="text-lg font-semibold text-gray-800">Reference Analysis</h4>
                     <ul class="list-disc ml-6">

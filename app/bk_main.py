@@ -24,7 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from .reference_checker import (
     extract_relevant_text, extract_references_section, process_main_content,
     process_references_section, get_all_article_pdfs, process_articles_with_verification,
-    save_articles_zip, WORD_LIMIT, extract_title_and_summary
+    save_articles_zip, WORD_LIMIT
 )
 
 # Setup logging
@@ -70,7 +70,6 @@ os.makedirs(current_dir / "processing", exist_ok=True)
 processing_queue = asyncio.Queue()
 is_processing = False
 
-
 @app.post("/submit")
 async def submit_pdf(
     file: UploadFile = File(...),
@@ -83,37 +82,50 @@ async def submit_pdf(
 
         # Save uploaded PDF
         pdf_path = os.path.join(request_dir, "article.pdf")
-        content = await file.read()
         with open(pdf_path, "wb") as f:
-            f.write(content)
+            f.write(await file.read())
 
-        # Extract first 1000 words
-        doc = fitz.open(pdf_path)
-        text = ""
-        for page in doc:
-            text += page.get_text()
-        doc.close()
+        # Extract title immediately
+        try:
+            doc = fitz.open(pdf_path)
+            first_page_text = doc[0].get_text().strip()
+            doc.close()
 
-        # Get title and summary using the API
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, extract_title_and_summary, text)
-        title, summary = result  # Unpack after awaiting
+            # Split text into lines and filter out empty ones
+            lines = [line.strip() for line in first_page_text.split('\n') if line.strip()]
 
-        if not title:
-            # Fallback to basic extraction if API fails
+            # Try to find a meaningful title
+            title = None
+            for line in lines[:5]:  # Check first 5 non-empty lines
+                # Skip lines that are too short or look like headers/metadata
+                if len(line) > 10 and not any(skip in line.lower() for skip in
+                                               ['university', 'journal', 'conference', 'proceedings', 'doi:', 'http', 'www']):
+                    title = line
+                    break
+
+            if not title:
+                title = lines[0] if lines else file.filename
+
+            # Clean up the title
+            title = title.replace('\n', ' ').replace('\r', ' ').strip()
+            title = ' '.join(title.split())  # Normalize whitespace
+            # Only truncate if it's really long
+            if len(title) > 150:
+                title = title[:150] + '...'
+
+        except Exception as e:
+            logger.error(f"Error extracting title: {str(e)}")
             title = file.filename
 
-        # Create database entry
+        # Create database entry with title
         db_request = ProcessingRequest(
             request_id=request_id,
             status="pending",
             progress={"stage": "Queued"},
             output_dir=request_dir,
             original_filename=file.filename,
-            article_title=title,
-            summary=summary
+            article_title=title  # Add the extracted title
         )
-
         db.add(db_request)
         db.commit()
 
@@ -124,7 +136,6 @@ async def submit_pdf(
     except Exception as e:
         logger.error(f"Error submitting PDF: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.post("/generate_summary")
 async def generate_summary(request: Request, db: Session = Depends(get_db)):
@@ -191,8 +202,7 @@ async def get_all_status(db: Session = Depends(get_db)):
         "created_at": req.created_at.isoformat(),
         "updated_at": req.updated_at.isoformat(),
         "original_filename": req.original_filename,
-        "article_title": req.article_title,
-        "summary": req.summary # Include summary in the response
+        "article_title": req.article_title
     } for req in requests}}
 
 @app.get("/download/{request_id}/{filename}")
@@ -231,7 +241,8 @@ def save_json(path: str, data: dict):
 def save_confirmations(path: str, final_output: dict):
     """Helper function to save all JSON data as a readable text file"""
     with open(path, "w", encoding="utf-8") as f:
-        f.write("Citation Confirmation Verifications\n")
+        # Write sentences section
+        f.write("ARTICLE SENTENCES AND VERIFICATIONS\n")
         f.write("="*50 + "\n\n")
 
         for sent in final_output.get("sentences", []):
@@ -245,8 +256,21 @@ def save_confirmations(path: str, final_output: dict):
                     f.write(f"Verdict: {ver.get('verdict', '')}\n")
                     f.write(f"Explanation: {ver.get('explanation', '')}\n")
                 f.write("\n")
-            f.write("-"*50 + "\n\n")  # Add line after every sentence
+            f.write("-"*50 + "\n\n")
 
+        # Write references section
+        f.write("\nREFERENCES\n")
+        f.write("="*50 + "\n\n")
+
+        for ref_key, ref_data in final_output.get("references", {}).items():
+            f.write(f"Reference {ref_key}:\n")
+            for key, value in ref_data.items():
+                if isinstance(value, (dict, list)):
+                    f.write(f"{key}: {json.dumps(value, indent=2)}\n")
+                else:
+                    f.write(f"{key}: {value}\n")
+            f.write("\n")
+            f.write("-"*50 + "\n\n")
 
 async def process_request(request_id: str, pdf_path: str, db: Session):
     """Process a single PDF request"""
@@ -355,27 +379,6 @@ async def process_queue():
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(process_queue())
-
-@app.get("/stats")
-async def get_stats(db: Session = Depends(get_db)):
-    """Return processing statistics."""
-    total_processed = db.query(ProcessingRequest).filter(ProcessingRequest.status == "completed").count()
-
-    # Calculate average processing time (very basic, improve as needed)
-    completed_requests = db.query(ProcessingRequest).filter(ProcessingRequest.status == "completed").all()
-    if completed_requests:
-        total_processing_time = sum([(req.updated_at - req.created_at).total_seconds() for req in completed_requests if req.updated_at and req.created_at])
-        average_time_seconds = total_processing_time / len(completed_requests) if completed_requests else 0
-        average_time_minutes = f"{average_time_seconds / 60:.2f}"
-    else:
-        average_time_minutes = "N/A"
-
-
-    return {
-        "totalProcessed": total_processed,
-        "averageTime": average_time_minutes # in minutes
-    }
-
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8001))  # Get port from env, default to 8001
