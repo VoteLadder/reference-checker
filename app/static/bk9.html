@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reference Checker</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+  <!-- Google Fonts (Inter is already loaded) -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <!-- React and ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <!-- Babel for JSX support -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1F2937;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in {
+      animation: fadeIn 0.5s ease-in;
+    }
+    .popover-loading-spinner {
+      width: 1rem;
+      height: 1rem;
+      border-width: 2px;
+      border-color: #3b82f6;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    #infoBox {
+      background-color: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      overflow-y: auto;
+      white-space: pre-line;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.95em;
+      line-height: 1.5;
+      max-height: 15em;
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal-content {
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 20px;
+      max-width: 400px;
+      max-height: 200px;
+      overflow-y: auto;
+      position: relative;
+    }
+    .close-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 1.2rem;
+      color: #555;
+      cursor: pointer;
+    }
+    @media (hover: none) {
+      button, a {
+        min-height: 44px;
+        min-width: 44px;
+      }
+      .touch-feedback:active {
+        transform: scale(0.98);
+        transition: transform 0.1s;
+      }
+    }
+    .overflow-y-auto {
+      -webkit-overflow-scrolling: touch;
+    }
+    .bg-gradient-to-r {
+      background: linear-gradient(135deg, #4F46E5 0%, #2563EB 100%);
+    }
+    .table-header {
+      background-color: #F9FAFB;
+      border-bottom: 2px solid #E5E7EB;
+    }
+    .shadow-md {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08),
+                  0 2px 4px -1px rgba(0, 0, 0, 0.04);
+    }
+    .hover\:shadow-lg:hover {
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08),
+                  0 4px 6px -2px rgba(0, 0, 0, 0.04);
+      transition: all 0.2s ease;
+    }
+    button {
+      transition: all 0.2s ease-in-out;
+    }
+    .search-input {
+      background-color: #F9FAFB;
+      border: 1px solid #E5E7EB;
+      transition: all 0.2s ease;
+    }
+    .search-input:focus {
+      background-color: white;
+      border-color: #3B82F6;
+    }
+    .status-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-weight: 500;
+    }
+    .overflow-y-auto {
+      scrollbar-width: thin;
+      scrollbar-color: #CBD5E1 transparent;
+    }
+    .overflow-y-auto::-webkit-scrollbar {
+      width: 6px;
+    }
+    .overflow-y-auto::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .overflow-y-auto::-webkit-scrollbar-thumb {
+      background-color: #CBD5E1;
+      border-radius: 3px;
+    }
+    .focus\:ring:focus {
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+      outline: none;
+    }
+    .analysis-download-button {
+      display: block;
+      width: 100%;
+      padding: 1rem;
+      margin: 1rem 0;
+      background: #4CAF50;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      transition: background-color 0.2s;
+    }
+    .analysis-download-button:hover {
+      background: #45a049;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col text-base sm:text-sm md:text-base">
+  <!-- Header Section -->
+  <header class="relative bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-8 text-center shadow-lg">
+    <div class="absolute top-2 right-2">
+      <a href="https://www.smartangio.com" target="_blank" class="bg-white text-blue-600 px-3 py-1 rounded shadow-md hover:bg-gray-100 transition-colors text-sm">
+        Back to Home: SmartAngio.com
+      </a>
+    </div>
+    <h1 class="text-4xl font-bold mb-2">Reference Checker</h1>
+    <p class="text-lg">Upload a PDF to verify citations against their references. Download a zip file of all publicly available articles in the reference section.</p>
+  </header>
+  <!-- Processing Stats Section -->
+  <section class="container mx-auto px-6 mt-8">
+    <div id="statsContainer"></div>
+  </section>
+  <div class="container mx-auto px-6 py-10 flex-grow">
+    <!-- Combined Info and Upload Section -->
+    <section class="mb-12 flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-6">
+      <!-- Info Section -->
+      <div class="md:w-1/2 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-8 flex flex-col justify-between">
+        <h2 class="text-2xl font-semibold mb-6 text-gray-800">Information</h2>
+        <div id="infoBox" class="flex-grow"></div>
+      </div>
+      <!-- Upload Section -->
+      <div class="md:w-1/2 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-8 flex flex-col justify-between">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-6">Upload PDF</h2>
+        <div class="flex-grow">
+          <form id="uploadForm" class="space-y-6">
+            <div class="border-2 border-dashed border-gray-400 rounded-lg p-8 text-center transition-colors hover:border-blue-500 hover:bg-blue-50" id="dropZone">
+              <input type="file" class="hidden" id="pdfFile" name="file" accept=".pdf" required />
+              <div class="space-y-3">
+                <i class="fas fa-cloud-upload-alt text-5xl text-gray-500"></i>
+                <p class="text-gray-700 text-lg">Drag and drop your PDF here or</p>
+                <button type="button" onclick="document.getElementById('pdfFile').click();" class="px-5 py-3 bg-blue-600 text-white rounded-md shadow-md hover:bg-blue-700 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                  Browse Files
+                </button>
+              </div>
+            </div>
+            <div id="fileInfo" class="hidden">
+              <div class="flex items-center space-x-3 text-gray-700">
+                <i class="fas fa-file-pdf text-red-500 text-lg"></i>
+                <span id="fileName" class="font-medium"></span>
+                <button type="button" onclick="clearFile()" class="text-red-500 hover:text-red-700 transition-colors focus:outline-none">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <button type="submit" class="w-full py-3 bg-green-600 text-white rounded-md shadow-md hover:bg-green-700 transition-transform focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50">
+              Process PDF
+            </button>
+          </form>
+        </div>
+        <div id="uploadMessage" class="mt-6 hidden"></div>
+      </div>
+    </section>
+    <!-- Processing Queue Section -->
+    <section class="w-full max-w-4xl mx-auto">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+        <h2 class="text-2xl font-semibold text-gray-800">Processing Queue</h2>
+        <div class="w-full sm:w-64">
+          <div class="relative">
+            <input
+              type="text"
+              id="searchInput"
+              class="search-input w-full px-4 py-2 rounded-lg pl-10 pr-4 focus:ring focus:outline-none focus:ring-blue-500"
+              placeholder="Search documents content..."
+            />
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i class="fas fa-search text-gray-400"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
+        <div class="max-h-80 overflow-y-auto">
+          <table class="w-full">
+            <thead class="bg-gray-50 sticky top-0 table-header">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[45%]">Document</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[40%]">Progress</th>
+              </tr>
+            </thead>
+            <tbody id="queueTableBody" class="bg-white divide-y divide-gray-200">
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4">
+                  <div class="flex flex-col space-y-2">
+                    <div class="text-sm font-medium text-gray-900 break-words">
+                      {/* data.original_filename */}
+                    </div>
+                    <div class="text-sm text-gray-500 break-words max-w-sm">
+                      <div class="font-semibold">Title:</div>
+                      {/* data.article_title */}
+                    </div>
+                    <div class="text-xs text-gray-500">
+                      {/* formatDate(data.created_at) */}
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    <button
+                      onClick={() => openAnalysisWindow(requestId, data.original_filename)}
+                      class="bg-indigo-600 text-white text-xs px-3 py-2 rounded hover:bg-indigo-700"
+                    >
+                      View Analysis
+                    </button>
+                    <button
+                      onClick={() => downloadFile(requestId, 'articles.zip', data.original_filename)}
+                      class="bg-green-600 text-white text-xs px-3 py-2 rounded hover:bg-green-700"
+                    >
+                      References Zip
+                    </button>
+                    <button
+                      onClick={() => downloadFile(requestId, 'verified.json', data.original_filename)}
+                      class="bg-blue-600 text-white text-xs px-3 py-2 rounded hover:bg-blue-700"
+                    >
+                      Raw Data JSON
+                    </button>
+                    <button
+                      disabled
+                      class="bg-gray-300 text-gray-600 text-xs px-3 py-2 rounded cursor-not-allowed"
+                    >
+                      Upload Non-Public & Re-Run
+                    </button>
+                  </div>
+                </td>
+                <td class="px-6 py-4">
+                  <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium status-badge ${
+                    data.status === 'completed'
+                      ? 'bg-green-100 text-green-800'
+                      : data.status === 'error'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {data.status === 'completed' && <i class="fas fa-check mr-1"></i>}
+                    {data.status === 'error' && <i class="fas fa-exclamation-circle mr-1"></i>}
+                    {data.status}
+                  </span>
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-500 break-words">
+                  {data.progress.stage || 'Completed'}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <!-- Acknowledgments Section -->
+    <section class="bg-gray-200 text-center py-8 mt-10">
+      <p class="mt-2 text-lg">Thanks to OpenAI for a grant enabling this project!</p>
+      <div class="mt-4 flex justify-center space-x-6 items-center">
+        <a href="https://www.linkedin.com/in/emil-cohen-178199b/" target="_blank" class="text-blue-700 hover:text-blue-900">
+          <i class="fab fa-linkedin fa-2x"></i>
+        </a>
+        <a href="https://x.com/ec2904" target="_blank" class="text-gray-800 hover:text-black">
+          <svg class="w-8 h-8" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path>
+          </svg>
+        </a>
+        <a href="mailto:cohenemil@gmail.com" class="text-red-600 hover:text-red-800">
+          <i class="fas fa-envelope fa-2x"></i>
+        </a>
+      </div>
+      <div class="text-center mt-4">
+        <a href="https://forms.gle/FwsQU1kBdF2YKbfV6" target="_blank" class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors focus:ring focus:ring-blue-500 focus:ring-opacity-50">
+          <i class="fas fa-hands-helping mr-2"></i>
+          Help Improve This Project
+        </a>
+      </div>
+      <p class="mt-3 text-lg text-gray-700">cohenemil@gmail.com</p>
+    </section>
+  </div>
+  <!-- Footer -->
+  <footer class="bg-gray-200 text-center py-6">
+    <p class="text-sm text-gray-600">© 2025 Reference Checker. All rights reserved.</p>
+  </footer>
+  <script type="text/babel">
+    const baseURL = "/reference_checker/api";
+
+    const QueueRow = ({ requestId, data, onSummaryFetched }) => {
+      const formatDate = (dateString) => {
+        if (!dateString) return '';
+        return new Date(dateString).toLocaleString();
+      };
+      return (
+        <tr class="hover:bg-gray-50">
+          <td class="px-6 py-4">
+            <div class="flex flex-col space-y-2">
+              <div class="text-sm font-medium text-gray-900 break-words">
+                {data.original_filename}
+              </div>
+              <div class="text-sm text-gray-500 break-words max-w-sm">
+                <div class="font-semibold">Title:</div>
+                {data.article_title}
+              </div>
+              <div class="text-xs text-gray-500">
+                {formatDate(data.created_at)}
+              </div>
+              {data.status === 'completed' && (
+                <div class="flex flex-wrap gap-2 mt-2">
+                  <button
+                    onClick={() => openSummaryWindow(requestId, data.original_filename, data.summary)}
+                    class="bg-purple-600 text-white text-xs px-3 py-2 rounded hover:bg-purple-700"
+                  >
+                    View Summary
+                  </button>
+                  <button
+                    onClick={() => openAnalysisWindow(requestId, data.original_filename)}
+                    class="bg-indigo-600 text-white text-xs px-3 py-2 rounded hover:bg-indigo-700"
+                  >
+                    View Analysis
+                  </button>
+                  <button
+                    onClick={() => downloadFile(requestId, 'articles.zip', data.original_filename)}
+                    class="bg-green-600 text-white text-xs px-3 py-2 rounded hover:bg-green-700"
+                  >
+                    References Zip
+                  </button>
+                  <button
+                    onClick={() => downloadFile(requestId, 'verified.json', data.original_filename)}
+                    class="bg-blue-600 text-white text-xs px-3 py-2 rounded hover:bg-blue-700"
+                  >
+                    Raw Data JSON
+                  </button>
+                  <button
+                    disabled
+                    class="bg-gray-300 text-gray-600 text-xs px-3 py-2 rounded cursor-not-allowed"
+                  >
+                    Upload Non-Public & Re-Run
+                  </button>
+                </div>
+              )}
+            </div>
+          </td>
+          <td class="px-6 py-4">
+            <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium status-badge ${
+              data.status === 'completed'
+                ? 'bg-green-100 text-green-800'
+                : data.status === 'error'
+                  ? 'bg-red-100 text-red-800'
+                  : 'bg-gray-100 text-gray-800'
+            }`}>
+              {data.status === 'completed' && <i class="fas fa-check mr-1"></i>}
+              {data.status === 'error' && <i class="fas fa-exclamation-circle mr-1"></i>}
+              {data.status}
+            </span>
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-500 break-words">
+            {data.progress.stage || 'Completed'}
+          </td>
+        </tr>
+      );
+    };
+    const { useState, useEffect } = React;
+    const ProcessingStats = () => {
+      const [stats, setStats] = useState({
+        totalProcessed: 0,
+        averageTime: '0'
+      });
+      useEffect(() => {
+        const fetchStats = async () => {
+          try {
+            const response = await fetch(`${baseURL}/stats`);
+            const data = await response.json();
+            setStats(data);
+          } catch (error) {
+            console.error('Error fetching stats:', error);
+          }
+        };
+        fetchStats();
+        const interval = setInterval(fetchStats, 30000);
+        return () => clearInterval(interval);
+      }, []);
+      return (
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-4 mb-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+              <i class="fas fa-file-alt text-blue-600 w-8 h-8"></i>
+              <div>
+                <p class="text-sm text-gray-500">Total Documents Processed</p>
+                <p class="text-2xl font-bold text-gray-900">{stats.totalProcessed}</p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+              <i class="fas fa-clock text-green-600 w-8 h-8"></i>
+              <div>
+                <p class="text-sm text-gray-500">Average Processing Time</p>
+                <p class="text-2xl font-bold text-gray-900">{stats.averageTime} min</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    function showMessage(message, isError = false) {
+      const messageDiv = document.getElementById('uploadMessage');
+      messageDiv.className = `mt-6 p-4 rounded-md ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'} fade-in`;
+      messageDiv.textContent = message;
+      messageDiv.classList.remove('hidden');
+      setTimeout(() => {
+        messageDiv.classList.add('hidden');
+      }, 5000);
+    }
+
+    function handleFile(file) {
+      const fileInfo = document.getElementById('fileInfo');
+      const fileName = document.getElementById('fileName');
+      if (file) {
+        fileName.textContent = file.name;
+        fileInfo.classList.remove('hidden');
+      }
+    }
+
+    function clearFile() {
+      const fileInput = document.getElementById('pdfFile');
+      const fileInfo = document.getElementById('fileInfo');
+      fileInput.value = '';
+      fileInfo.classList.add('hidden');
+    }
+
+    async function downloadFile(requestId, filename, originalFilename) {
+      try {
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        button.disabled = true;
+        const response = await fetch(`${baseURL}/download/${requestId}/${filename}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const prefix = originalFilename.substring(0, 10);
+        const newFilename = `${prefix}_${filename}`;
+        a.download = newFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        button.innerHTML = originalText;
+        button.disabled = false;
+      } catch (error) {
+        console.error('Download failed:', error);
+        showMessage(`Failed to download ${filename}: ${error.message}`, true);
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }
+    }
+
+    async function openAnalysisWindow(requestId, originalFilename) {
+      try {
+        const firstTenLetters = originalFilename.replace('.pdf', '').substring(0, 10);
+        const confirmationFileName = `${firstTenLetters}_confirmations.txt`;
+        const response = await fetch(`${baseURL}/download/${requestId}/confirmations.txt`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const analysisText = await response.text();
+        const newWindow = window.open('', '_blank', 'width=800,height=600');
+        
+        newWindow.document.write(`
+          <html>
+            <head>
+              <title>Analysis Report - ${originalFilename}</title>
+              <style>
+                body { 
+                  font-family: 'Inter', sans-serif; 
+                  padding: 20px; 
+                  line-height: 1.6;
+                  max-width: 900px;
+                  margin: 0 auto;
+                  background: #f5f5f5;
+                }
+                .header {
+                  background: white;
+                  padding: 20px;
+                  border-radius: 8px;
+                  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                  margin-bottom: 20px;
+                }
+                .button-group { 
+                  margin-bottom: 20px;
+                  display: flex;
+                  gap: 10px;
+                }
+                .button-group button { 
+                  padding: 8px 16px;
+                  font-size: 0.9rem;
+                  border: none;
+                  border-radius: 4px;
+                  cursor: pointer;
+                  transition: all 0.2s ease;
+                }
+                .button-group button:hover {
+                  transform: translateY(-1px);
+                  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                .download-btn { 
+                  background: #4CAF50; 
+                  color: white;
+                }
+                .all-btn { 
+                  background: #3B82F6; 
+                  color: white;
+                }
+                .no-btn { 
+                  background: #EF4444; 
+                  color: white;
+                }
+                .sentence-card {
+                  background: white;
+                  padding: 20px;
+                  border-radius: 8px;
+                  margin-bottom: 15px;
+                  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                }
+                .sentence-header {
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-bottom: 10px;
+                }
+                .sentence-number {
+                  font-weight: 600;
+                  color: #4B5563;
+                }
+                .verdict {
+                  padding: 4px 12px;
+                  border-radius: 12px;
+                  font-size: 0.85rem;
+                  font-weight: 500;
+                }
+                .verdict-yes {
+                  background: #DEF7EC;
+                  color: #03543F;
+                }
+                .verdict-no {
+                  background: #FDE8E8;
+                  color: #9B1C1C;
+                }
+                .verdict-maybe {
+                  background: #FEF3C7;
+                  color: #92400E;
+                }
+                .sentence-text {
+                  font-size: 1rem;
+                  color: #1F2937;
+                  margin-bottom: 8px;
+                  line-height: 1.6;
+                }
+                .citations {
+                  font-size: 0.9rem;
+                  color: #6B7280;
+                  border-top: 1px solid #E5E7EB;
+                  padding-top: 8px;
+                  margin-top: 8px;
+                }
+                .citations span {
+                  color: #4B5563;
+                  font-weight: 500;
+                }
+                analysisContainer {
+                  margin-top: 20px;
+                }
+                .no-results {
+                  text-align: center;
+                  padding: 40px;
+                  background: white;
+                  border-radius: 8px;
+                  color: #6B7280;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="header">
+                <h1>Analysis Report - ${originalFilename}</h1>
+                <div class="button-group">
+                  <a href="${baseURL}/download/${requestId}/confirmations.txt" download="${confirmationFileName}">
+                    <button class="download-btn">Download Report</button>
+                  </a>
+                  <button class="all-btn" id="displayAllBtn">All Sentences</button>
+                  <button class="no-btn" id="displayNoBtn">Show "No" Verdicts</button>
+                </div>
+              </div>
+              <div id="analysisContainer"></div>
+              <script>
+                function parseAnalysis(text) {
+                  const rawSentences = text.split(/\\n-{3,}\\n/);
+                  return rawSentences
+                    .map(raw => {
+                      const trimmed = raw.trim();
+                      if (!trimmed) {
+                        return null;
+                      }
+
+                      const citationMatches = trimmed.match(/\\[(\\d+)\\]/g);
+                      const citations = citationMatches 
+                        ? [...new Set(citationMatches.map(match => match.replace(/\\D/g, '')))]
+                        : [];
+
+                      let verdict = "maybe";
+                      const verdictMatch = trimmed.match(/\\[Verdict:\\s*(Yes|Maybe|No)\\]/i);
+                      if (verdictMatch) {
+                        verdict = verdictMatch[1].toLowerCase();
+                      }
+
+                      const sentenceText = trimmed
+                        .replace(/\\[(\\d+)\\]/g, "")
+                        .replace(/\\[Verdict:\\s*(Yes|Maybe|No)\\]/i, "")
+                        .trim();
+
+                      return { 
+                        text: sentenceText, 
+                        verdict, 
+                        citations 
+                      };
+                    })
+                    .filter(Boolean);
+                }
+
+                const sentences = parseAnalysis(${JSON.stringify(analysisText)});
+
+                function renderAnalysis(viewType) {
+                  const container = document.getElementById('analysisContainer');
+                  container.innerHTML = "";
+
+                  let filtered = sentences;
+                  if (viewType === 'no') {
+                    filtered = sentences.filter(s => s.verdict.toLowerCase() === 'no');
+                  }
+
+                  if (filtered.length === 0) {
+                    container.innerHTML = '<div class="no-results">No sentences found matching the selected filter.</div>';
+                    return;
+                  }
+
+                  filtered.forEach((s, index) => {
+                    const sentenceDiv = document.createElement('div');
+                    sentenceDiv.className = "sentence-card";
+                    const verdictClass = \`verdict-\${s.verdict.toLowerCase()}\`;
+                    
+                    sentenceDiv.innerHTML = \`
+                      <div class="sentence-header">
+                        <div class="sentence-number">Sentence \${index + 1}</div>
+                        <div class="verdict \${verdictClass}">\${s.verdict.toUpperCase()}</div>
+                      </div>
+                      <div class="sentence-text">\${s.text}</div>
+                      <div class="citations">
+                        <span>Citations:</span> \${s.citations.length ? s.citations.join(", ") : "None"}
+                      </div>
+                    \`;
+
+                    container.appendChild(sentenceDiv);
+                  });
+                }
+
+                document.getElementById('displayAllBtn').addEventListener('click', () => {
+                  renderAnalysis("all");
+                });
+
+                document.getElementById('displayNoBtn').addEventListener('click', () => {
+                  renderAnalysis("no");
+                });
+
+                // Initial render
+                renderAnalysis("all");
+              <\/script>
+            </body>
+          </html>
+        `);
+        newWindow.document.close();
+      } catch (error) {
+        console.error('Error fetching analysis report:', error);
+        showMessage(`Failed to load analysis report: ${error.message}`, true);
+      }
+    }
+
+
+    async function openSummaryWindow(requestId, originalFilename, summaryText) {
+      try {
+        const firstTenLetters = originalFilename.replace('.pdf', '').substring(0, 10);
+        const summaryFileName = `${firstTenLetters}_summary.txt`;
+        const newWindow = window.open('', '_blank', 'width=600,height=400');
+        newWindow.document.write(`
+          <html>
+            <head>
+              <title>Summary - ${originalFilename}</title>
+              <style>
+                body { font-family: 'Inter', sans-serif; padding: 20px; }
+                pre { white-space: pre-wrap; word-wrap: break-word; }
+                .download-button {
+                  display: inline-block;
+                  width: auto;
+                  padding: 0.75rem 1.5rem;
+                  margin: 1rem 0;
+                  background: #4CAF50;
+                  color: white;
+                  text-decoration: none;
+                  border-radius: 6px;
+                  text-align: center;
+                  font-size: 1rem;
+                  font-weight: 600;
+                }
+                .download-button:hover {
+                  background: #45a049;
+                }
+              </style>
+            </head>
+            <body>
+              <h1>Summary - ${originalFilename}</h1>
+              <a href="data:text/plain;charset=utf-8,${encodeURIComponent(summaryText)}"
+                 class="download-button"
+                 download="${summaryFileName}">
+                Download Summary
+              </a>
+              <pre>${summaryText}</pre>
+            </body>
+          </html>
+        `);
+        newWindow.document.close();
+      } catch (error) {
+        console.error('Error opening summary window:', error);
+        showMessage(`Failed to load summary: ${error.message}`, true);
+      }
+    }
+
+    let summariesCache = {};
+    function cacheSummary(requestId, summary) {
+      summariesCache[requestId] = summary;
+    }
+
+    async function updateQueueTable() {
+      try {
+        const response = await fetch(`${baseURL}/status`);
+        const data = await response.json();
+        const tbody = document.getElementById('queueTableBody');
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const newQueueData = data.requests;
+        const rows = Object.entries(newQueueData)
+          .filter(([requestId, request]) => {
+            const summary = summariesCache[requestId] || '';
+            let searchableText = [
+              request.article_title,
+              request.original_filename,
+              summary,
+              request.status,
+              request.progress.stage,
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .toLowerCase();
+            return !searchTerm || searchableText.includes(searchTerm);
+          })
+          .map(([requestId, request]) => (
+            <QueueRow key={requestId} requestId={requestId} data={request} onSummaryFetched={cacheSummary} />
+          ));
+        ReactDOM.createRoot(tbody).render(<>{rows}</>);
+      } catch (error) {
+        console.error('Error updating queue:', error);
+      }
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const submitButton = this.querySelector('button[type="submit"]');
+      try {
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i className="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+        const response = await fetch(`${baseURL}/submit`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await response.json();
+        if (data.request_id) {
+          showMessage(`Upload successful! Request ID: ${data.request_id}`);
+          this.reset();
+          clearFile();
+          await updateQueueTable();
+        } else {
+          showMessage(data.detail || 'Upload failed', true);
+        }
+      } catch (error) {
+        showMessage(`Upload failed: ${error}`, true);
+      } finally {
+        submitButton.disabled = false;
+        submitButton.innerHTML = 'Process PDF';
+      }
+    });
+
+    const dropZone = document.getElementById('dropZone');
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => {
+        dropZone.classList.add('border-blue-500', 'bg-blue-50');
+      });
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => {
+        dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+      });
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const file = e.dataTransfer.files[0];
+      if (file && file.type === 'application/pdf') {
+        const fileInput = document.getElementById('pdfFile');
+        fileInput.files = e.dataTransfer.files;
+        handleFile(file);
+      } else {
+        showMessage('Please upload a PDF file', true);
+      }
+    });
+    document.getElementById('pdfFile').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        handleFile(file);
+      }
+    });
+    document.getElementById('searchInput').addEventListener('input', debounce(updateQueueTable, 300));
+
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    function loadInfoText() {
+      const infoHTML = `
+        <div class="space-y-4">
+          <h2 class="text-2xl font-bold text-gray-800">Reference Checker</h2>
+          <h3 class="text-xl font-semibold text-gray-800">Overview</h3>
+          <p>Reference Checker is an AI-powered tool designed to streamline the academic paper review process by automatically analyzing and verifying citations. The program examines each citation in a paper, compares it with the original source material, and provides a reliability assessment, helping reviewers identify potential issues and ensure research integrity.</p>
+          <p>Using advanced language models and document processing capabilities, the system can:</p>
+          <ul class="list-disc ml-6">
+            <li>Extract and analyze citations from academic papers</li>
+            <li>Locate and retrieve cited source materials</li>
+            <li>Verify the accuracy of how sources are referenced</li>
+            <li>Generate detailed reports highlighting potential discrepancies</li>
+          </ul>
+          <h3 class="text-xl font-semibold text-gray-800">How It Works</h3>
+          <p>The program processes academic papers through several stages:</p>
+          <ul class="list-disc ml-6">
+            <li><strong>Document Analysis:</strong> Extracts text from PDF papers, identifying both inline citations and the references section</li>
+            <li><strong>Source Retrieval:</strong> Automatically downloads cited papers from open-access sources</li>
+            <li><strong>Citation Verification:</strong> Uses AI to compare citing text against source material</li>
+            <li><strong>Report Generation:</strong> Produces detailed analysis with confidence ratings (yes/no/maybe) for each citation</li>
+          </ul>
+          <h3 class="text-xl font-semibold text-gray-800">Verification Results</h3>
+          <p>The program categorizes each citation with one of three verdicts:</p>
+          <ul class="list-disc ml-6">
+            <li><strong>Yes:</strong> High confidence that the citation accurately represents the source</li>
+            <li><strong>Maybe:</strong> Some uncertainty exists, but the citation appears generally accurate</li>
+            <li><strong>No:</strong> Potential discrepancy detected, requiring manual review</li>
+          </ul>
+          <p>Experience shows that "yes" and "maybe" verdicts are generally reliable, while "no" verdicts often reveal interesting discrepancies worth investigating.</p>
+          <h3 class="text-xl font-semibold text-gray-800">Key Features</h3>
+          <h4 class="text-lg font-semibold text-gray-800">Document Processing</h4>
+          <ul class="list-disc ml-6">
+            <li><strong>The program generally works best with numbered citations(for now)</strong></li>
+            <li>Handles academic papers in PDF format</li>
+            <li>Intelligent extraction of main content and references</li>
+            <li>Detailed parsing of various citation styles</li>
+          </ul>
+          <h4 class="text-lg font-semibold text-gray-800">Reference Analysis</h4>
+          <ul class="list-disc ml-6">
+            <li>Precise identification of in-text citations</li>
+            <li>Smart mapping between citations and references</li>
+            <li>Contextual understanding of citation usage</li>
+          </ul>
+          <h4 class="text-lg font-semibold text-gray-800">Document Retrieval</h4>
+          <ul class="list-disc ml-6">
+            <li>Automated download of open-access papers</li>
+            <li>Smart caching to avoid redundant downloads</li>
+            <li>Extensible architecture supporting institutional access integration</li>
+          </ul>
+          <h4 class="text-lg font-semibold text-gray-800">Citation Verification</h4>
+          <ul class="list-disc ml-6">
+            <li>Deep semantic analysis of citing text and source material</li>
+            <li>Context-aware verification considering surrounding text</li>
+            <li>Confidence scoring with detailed explanations</li>
+          </ul>
+          <h4 class="text-lg font-semibold text-gray-800">Output Generation</h4>
+          <ul class="list-disc ml-6">
+            <li>Structured JSON output for programmatic use</li>
+            <li>Human-readable summary reports</li>
+            <li>Direct links to source materials</li>
+            <li>Bundled reference package for offline review</li>
+          </ul>
+          <h3 class="text-xl font-semibold text-gray-800">Benefits</h3>
+          <h4 class="text-lg font-semibold text-gray-800">Enhanced Efficiency</h4>
+          <ul class="list-disc ml-6">
+            <li>Reduces manual citation checking time by 60-80%</li>
+            <li>Automates retrieval of reference materials</li>
+            <li>Streamlines the review workflow</li>
+          </ul>
+          <h4 class="text-lg font-semibold text-gray-800">Improved Accuracy</h4>
+          <ul class="list-disc ml-6">
+            <li>Systematic verification of all citations</li>
+            <li>Reduced risk of missing problematic references</li>
+            <li>Consistent evaluation criteria</li>
+          </ul>
+          <h4 class="text-lg font-semibold text-gray-800">Greater Accessibility</h4>
+          <ul class="list-disc ml-6">
+            <li>Centralized access to all referenced materials</li>
+            <li>Organized presentation of findings</li>
+            <li>Easy navigation between citations and sources</li>
+          </ul>
+          <h4 class="text-lg font-semibold text-gray-800">Research Integrity</h4>
+          <ul class="list-disc ml-6">
+            <li>Transparent verification process</li>
+            <li>Documentation of citation accuracy</li>
+            <li>Support for evidence-based peer review</li>
+          </ul>
+          <h3 class="text-xl font-semibold text-gray-800">Future Potential</h3>
+          <h4 class="text-lg font-semibold text-gray-800">Publisher Integration</h4>
+          <p>The system is designed for integration into publisher workflows, offering:</p>
+          <ul class="list-disc ml-6">
+            <li>Automated pre-review citation checking</li>
+            <li>Standardized citation verification reports</li>
+            <li>Enhanced peer review efficiency</li>
+          </ul>
+          <h4 class="text-lg font-semibold text-gray-800">Research Analysis</h4>
+          <p>The tool enables meta-analysis of citation practices:</p>
+          <ul class="list-disc ml-6">
+            <li>Field-specific citation accuracy patterns</li>
+            <li>Publication-level citation reliability metrics</li>
+            <li>Temporal trends in citation accuracy</li>
+          </ul>
+          <h4 class="text-lg font-semibold text-gray-800">Institutional Use</h4>
+          <p>Academic institutions can leverage the system for:</p>
+          <ul class="list-disc ml-6">
+            <li>Thesis and dissertation review</li>
+            <li>Research integrity monitoring</li>
+            <li>Publication quality assessment</li>
+          </ul>
+          <h3 class="text-xl font-semibold text-gray-800">Current Limitations</h3>
+          <ul class="list-disc ml-6">
+            <li>Limited to open-access materials</li>
+            <li>Cost considerations for higher-tier language models</li>
+            <li>Processing time varies with document complexity</li>
+          </ul>
+          <h3 class="text-xl font-semibold text-gray-800">Cost Considerations</h3>
+          <p class="text-sm">The system operates effectively with lower-cost models for proof-of-concept purposes. Enhanced accuracy is available using premium models at approximately $1 per article analyzed.</p>
+          <p class="mt-4 font-semibold">Developed by Emil Cohen</p>
+        </div>
+      `;
+      document.getElementById('infoBox').innerHTML = infoHTML;
+    }
+
+    ReactDOM.createRoot(document.getElementById('statsContainer')).render(<ProcessingStats />);
+    loadInfoText();
+    updateQueueTable();
+    setInterval(updateQueueTable, 10000);
+  </script>
+</body>
+</html>
+
