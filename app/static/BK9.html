@@ -274,7 +274,7 @@
                     </tr>
                     </thead>
                     <tbody id="queueTableBody" class="bg-white divide-y divide-gray-200">
-                    <tr class="hover:bg-gray-50">
+                    <tr className="hover:bg-gray-50">
                         <td class="px-6 py-4">
                             <div class="flex flex-col space-y-2">
                                 <div class="text-sm font-medium text-gray-900 break-words">
@@ -363,6 +363,111 @@
 </footer>
 <script type="text/babel">
     const baseURL = "/reference_checker/api";
+    const { useState, useEffect } = React;
+
+    // Add the AnalysisReport component here, before other components
+    const AnalysisReport = ({ analysisText, originalFilename, requestId }) => {
+        const [filter, setFilter] = useState('all');
+        
+        // Parse the JSON if it's a string
+        const analysisData = typeof analysisText === 'string' ? JSON.parse(analysisText) : analysisText;
+        
+        // Filter sentences based on selection
+        const getFilteredSentences = () => {
+            if (!analysisData?.sentences) return [];
+            
+            if (filter === 'no-verdicts') {
+                return analysisData.sentences.filter(sentence => 
+                    sentence.verifications?.some(verification => verification.verdict === 'no')
+                );
+            }
+            
+            return analysisData.sentences;
+        };
+
+        // Get reference details
+        const getReferenceDetails = (refNumber) => {
+            const reference = analysisData.references[refNumber];
+            if (!reference) return '';
+            return `[${refNumber}] ${reference.title} (${reference.first_author})`;
+        };
+
+        const filteredSentences = getFilteredSentences();
+
+        return (
+            <div className="p-6">
+                <h1 className="text-2xl font-bold mb-4">Analysis Report - {originalFilename}</h1>
+                
+                <div className="flex gap-4 mb-6">
+                    {/* Download button */}
+                    <a 
+                        href={`${baseURL}/download/${requestId}/confirmations.txt`}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+                        download={`${originalFilename.substring(0, 10)}_confirmations.txt`}
+                    >
+                        Download Full Report
+                    </a>
+                    
+                    {/* Filter buttons */}
+                    <button
+                        onClick={() => setFilter('all')}
+                        className={`px-4 py-2 rounded-lg transition-colors ${
+                            filter === 'all' 
+                                ? 'bg-blue-600 text-white' 
+                                : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                        }`}
+                    >
+                        Show All Sentences
+                    </button>
+                    
+                    <button
+                        onClick={() => setFilter('no-verdicts')}
+                        className={`px-4 py-2 rounded-lg transition-colors ${
+                            filter === 'no-verdicts' 
+                                ? 'bg-blue-600 text-white' 
+                                : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                        }`}
+                    >
+                        Show 'No' Verdicts Only
+                    </button>
+                </div>
+
+                <div className="space-y-6">
+                    {filteredSentences.map((sentence, index) => (
+                        <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                            <p className="mb-2">
+                                <span className="font-semibold">Sentence {sentence.id}:</span> {sentence.sentence}
+                            </p>
+                            
+                            {sentence.verifications?.map((verification, vIndex) => (
+                                <div key={vIndex} className="ml-4 mt-2">
+                                    <p className="text-gray-600">
+                                        <span className="font-medium">Reference {verification.reference}:</span>{' '}
+                                        {getReferenceDetails(verification.reference)}
+                                    </p>
+                                    <p className="text-gray-600">
+                                        <span className="font-medium">Verdict:</span>{' '}
+                                        <span className={`font-semibold ${
+                                            verification.verdict === 'yes' 
+                                                ? 'text-green-600' 
+                                                : verification.verdict === 'no' 
+                                                    ? 'text-red-600' 
+                                                    : 'text-yellow-600'
+                                        }`}>
+                                            {verification.verdict.toUpperCase()}
+                                        </span>
+                                    </p>
+                                    <p className="text-gray-600">
+                                        <span className="font-medium">Explanation:</span> {verification.explanation}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
 
     // Updated QueueRow Component
     const QueueRow = ({ requestId, data, onSummaryFetched }) => {
@@ -390,7 +495,7 @@
                                 {/* Summary Button - Opens new window */}
                                 <button
                                     onClick={() => openSummaryWindow(requestId, data.original_filename, data.summary)}
-                                    class="bg-purple-600 text-white text-xs px-3 py-2 rounded hover:bg-purple-700"
+                                    className="bg-purple-600 text-white text-xs px-3 py-2 rounded hover:bg-purple-700"
                                 >
                                     View Summary
                                 </button>
@@ -441,7 +546,7 @@
             </tr>
         );
     };
-    const { useState, useEffect } = React; 
+
     const ProcessingStats = () => {
         const [stats, setStats] = useState({
             totalProcessed: 0,
@@ -522,7 +627,7 @@
         try {
             const button = event.target;
             const originalText = button.innerHTML;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            button.innerHTML = '<i className="fas fa-spinner fa-spin"></i>';
             button.disabled = true;
 
             const response = await fetch(`${baseURL}/download/${requestId}/${filename}`);
@@ -555,36 +660,12 @@
         }
     }
 
-    // Global function to open the analysis report in a new window
+    // Update the openAnalysisWindow function
     async function openAnalysisWindow(requestId, originalFilename) {
         try {
-            // Fetch the verified.json data
             const response = await fetch(`${baseURL}/download/${requestId}/verified.json`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const analysisData = await response.json();
-
-            // Get the title and summary (keep the original API call)
-            const firstSentence = analysisData.sentences[0];
-            if (firstSentence) {
-                try {
-                    const summaryResponse = await fetch(`${baseURL}/generate_summary`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ request_id: requestId })
-                    });
-                    if (summaryResponse.ok) {
-                        const summaryData = await summaryResponse.json();
-                        if (summaryData.summary) {
-                            // Store the summary in the cache if needed
-                            cacheSummary(requestId, summaryData.summary);
-                        }
-                    }
-                } catch (summaryError) {
-                    console.error('Error fetching summary:', summaryError);
-                }
-            }
             
             const newWindow = window.open('', '_blank', 'width=800,height=800');
             
@@ -697,6 +778,7 @@
             showMessage(`Failed to load analysis report: ${error.message}`, true);
         }
     }
+
 
     // New global function to open the summary in a new window
     async function openSummaryWindow(requestId, originalFilename, summaryText) {
