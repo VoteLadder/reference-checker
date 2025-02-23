@@ -18,12 +18,12 @@ OUTPUT_DIR = 'ArticleV'
 WORD_LIMIT = 12000
 
 # MAIN provider configuration
-MAIN_API_KEY   = "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"
+MAIN_API_KEY   = 
 MAIN_API_URL   = "https://openrouter.ai/api/v1/chat/completions"
 MAIN_MODEL     = "openai/o3-mini"
 
 # VERIFICATION provider configuration
-VERIF_API_KEY   = "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"
+VERIF_API_KEY   = 
 VERIF_API_URL   = "https://openrouter.ai/api/v1/chat/completions"
 VERIF_MODEL     = "openai/gpt-4o-mini"
 
