@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -210,7 +211,24 @@
         <!-- Info Section -->
         <div class="md:w-1/2 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-8 flex flex-col justify-between">
             <h2 class="text-2xl font-semibold mb-6 text-gray-800">Information</h2>
-            <div id="infoBox" class="flex-grow"></div>
+            <div class="space-y-4">
+                <h2 class="text-2xl font-bold text-gray-800">Reference Checker</h2>
+                <p>AI-powered tool that streamlines academic paper review(or verification) by automatically analyzing and verifying citations against original sources.</p>
+                
+                <h3 class="text-lg font-semibold text-gray-800">Key Features:</h3>
+                <ul class="list-disc ml-6">
+                  <li>Automatic citation extraction and verification</li>
+                  <li>Downloads and checks references against source materials</li>
+                  <li>Provides confidence ratings (yes/no/maybe) & Generates detailed analysis reports</li>
+                  <li>Download a zip folder containing pdf's of all publically available refereces</li>
+                </ul>
+              
+                <button 
+                  onclick="openDocumentation()"
+                  class="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                  View Full Documentation
+                </button>
+            </div>
         </div>
         <!-- Upload Section -->
         <div class="md:w-1/2 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-8 flex flex-col justify-between">
@@ -563,135 +581,158 @@
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const analysisData = await response.json();
 
-            // Get the title and summary (keep the original API call)
-            const firstSentence = analysisData.sentences[0];
-            if (firstSentence) {
-                try {
-                    const summaryResponse = await fetch(`${baseURL}/generate_summary`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ request_id: requestId })
-                    });
-                    if (summaryResponse.ok) {
-                        const summaryData = await summaryResponse.json();
-                        if (summaryData.summary) {
-                            // Store the summary in the cache if needed
-                            cacheSummary(requestId, summaryData.summary);
-                        }
-                    }
-                } catch (summaryError) {
-                    console.error('Error fetching summary:', summaryError);
-                }
-            }
-            
-            const newWindow = window.open('', '_blank', 'width=800,height=800');
-            
-            newWindow.document.write('\
-                <!DOCTYPE html>\
-                <html>\
-                    <head>\
-                        <title>Analysis Report - ' + originalFilename + '</title>\
-                        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">\
-                        <script src="https://cdn.tailwindcss.com"><\/script>\
-                        <style>\
-                            body { \
-                                font-family: "Inter", -apple-system, sans-serif;\
-                                margin: 0;\
-                                padding: 20px;\
-                            }\
-                            .verdict-no { color: #dc2626; }\
-                            .verdict-yes { color: #16a34a; }\
-                            .verdict-maybe { color: #ca8a04; }\
-                        </style>\
-                    </head>\
-                    <body class="bg-gray-50">\
-                        <div class="max-w-4xl mx-auto">\
-                            <h1 class="text-2xl font-bold mb-4">Analysis Report - ' + originalFilename + '</h1>\
-                            \
-                            <div class="flex gap-4 mb-6">\
-                                <a href="' + baseURL + '/download/' + requestId + '/confirmations.txt" \
-                                download="' + originalFilename.substring(0, 10) + '_confirmations.txt" \
-                                class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors">\
-                                    Download Full Report\
-                                </a>\
-                                <button id="allVerdicts" \
-                                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">\
-                                    Show All Verdicts\
-                                </button>\
-                                <button id="noVerdicts" \
-                                        class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors">\
-                                    Show \'No\' Verdicts Only\
-                                </button>\
-                            </div>\
-                            <div id="reportContent" class="space-y-6"></div>\
-                        </div>\
-                    </body>\
-                </html>\
-            ');
-
-            // Add the script after writing the initial HTML
-            const scriptContent = `
-                const analysisData = ${JSON.stringify(analysisData)};
-                
-                function formatSentence(sentence) {
-                    let html = '<div class="bg-white p-4 rounded-lg shadow">';
-                    html += \`<p class="mb-2"><span class="font-semibold">Sentence \${sentence.id}:</span> \${sentence.sentence}</p>\`;
-                    
-                    if (sentence.verifications) {
-                        sentence.verifications.forEach(verification => {
-                            const reference = analysisData.references[verification.reference];
-                            const referenceText = reference ? 
-                                \`[\${verification.reference}] \${reference.title} (\${reference.first_author})\` : 
-                                \`Reference \${verification.reference}\`;
+            const newWindow = window.open('', '_blank');
+            newWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                        <title>Analysis Report - ${originalFilename}</title>
+                        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+                        <script src="https://cdn.tailwindcss.com"><\/script>
+                        <style>
+                            body { 
+                                font-family: "Inter", -apple-system, sans-serif;
+                                margin: 0;
+                                padding: 12px;
+                                -webkit-text-size-adjust: 100%;
+                            }
+                            .verdict-no { color: #dc2626; }
+                            .verdict-yes { color: #16a34a; }
+                            .verdict-maybe { color: #ca8a04; }
+                            @media (max-width: 768px) {
+                                .button-group {
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 8px;
+                                }
+                                .button-group button,
+                                .button-group a {
+                                    width: 100%;
+                                    margin: 0;
+                                }
+                            }
+                            #reportContent {
+                                margin-top: 16px;
+                            }
+                            .analysis-card {
+                                background: white;
+                                border-radius: 8px;
+                                padding: 16px;
+                                margin-bottom: 16px;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                            }
+                            .reference-section {
+                                margin-left: 16px;
+                                margin-top: 8px;
+                                padding-left: 8px;
+                                border-left: 2px solid #e5e7eb;
+                            }
+                            @media (max-width: 768px) {
+                                body {
+                                    padding: 8px;
+                                }
+                                .analysis-card {
+                                    padding: 12px;
+                                }
+                                .reference-section {
+                                    margin-left: 8px;
+                                    padding-left: 8px;
+                                }
+                            }
+                        </style>
+                    </head>
+                    <body class="bg-gray-50">
+                        <div class="max-w-4xl mx-auto">
+                            <h1 class="text-xl md:text-2xl font-bold mb-4">Analysis Report - ${originalFilename}</h1>
                             
-                            html += '<div class="ml-4 mt-2">';
-                            html += \`<p class="text-gray-600"><span class="font-medium">Reference:</span> \${referenceText}</p>\`;
-                            html += \`<p class="text-gray-600">
-                                <span class="font-medium">Verdict:</span> 
-                                <span class="font-semibold verdict-\${verification.verdict.toLowerCase()}">\${verification.verdict.toUpperCase()}</span>
-                            </p>\`;
-                            html += \`<p class="text-gray-600"><span class="font-medium">Explanation:</span> \${verification.explanation}</p>\`;
-                            html += '</div>';
-                        });
-                    }
-                    
-                    html += '</div>';
-                    return html;
-                }
-                
-                function showAllVerdicts() {
-                    const content = document.getElementById('reportContent');
-                    content.innerHTML = analysisData.sentences
-                        .map(sentence => formatSentence(sentence))
-                        .join('');
-                }
-                
-                function showNoVerdicts() {
-                    const content = document.getElementById('reportContent');
-                    content.innerHTML = analysisData.sentences
-                        .filter(sentence => 
-                            sentence.verifications?.some(v => v.verdict === 'no')
-                        )
-                        .map(sentence => formatSentence(sentence))
-                        .join('');
-                }
+                            <div class="button-group flex flex-col md:flex-row gap-2 mb-6">
+                                <a href="${baseURL}/download/${requestId}/confirmations.txt" 
+                                download="${originalFilename.substring(0, 10)}_confirmations.txt" 
+                                class="px-4 py-2 bg-green-600 text-white text-center rounded hover:bg-green-700 transition-colors">
+                                    Download Full Report
+                                </a>
+                                <button id="allVerdicts" 
+                                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                                    Show All Verdicts
+                                </button>
+                                <button id="noVerdicts" 
+                                        class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors">
+                                    Show 'No' Verdicts Only
+                                </button>
+                            </div>
+                            <div id="reportContent" class="space-y-4"></div>
+                        </div>
+                        <script>
+                            const analysisData = ${JSON.stringify(analysisData)};
+                            
+                            function formatSentence(sentence) {
+                                let html = '<div class="analysis-card">';
+                                html += \`<p class="mb-2"><span class="font-semibold">Sentence \${sentence.id}:</span> \${sentence.sentence}</p>\`;
+                                
+                                if (sentence.verifications) {
+                                    sentence.verifications.forEach(verification => {
+                                        const reference = analysisData.references[verification.reference];
+                                        const referenceText = reference ? 
+                                            \`[\${verification.reference}] \${reference.title} (\${reference.first_author})\` : 
+                                            \`Reference \${verification.reference}\`;
+                                        
+                                        html += '<div class="reference-section">';
+                                        html += \`<p class="text-gray-600 text-sm md:text-base"><span class="font-medium">Reference:</span> \${referenceText}</p>\`;
+                                        html += \`<p class="text-gray-600 text-sm md:text-base">
+                                            <span class="font-medium">Verdict:</span> 
+                                            <span class="font-semibold verdict-\${verification.verdict.toLowerCase()}">\${verification.verdict.toUpperCase()}</span>
+                                        </p>\`;
+                                        html += \`<p class="text-gray-600 text-sm md:text-base"><span class="font-medium">Explanation:</span> \${verification.explanation}</p>\`;
+                                        html += '</div>';
+                                    });
+                                }
+                                
+                                html += '</div>';
+                                return html;
+                            }
+                            
+                            function showAllVerdicts() {
+                                const content = document.getElementById('reportContent');
+                                content.innerHTML = analysisData.sentences
+                                    .map(sentence => formatSentence(sentence))
+                                    .join('');
+                            }
+                            
+                            function showNoVerdicts() {
+                                const content = document.getElementById('reportContent');
+                                content.innerHTML = analysisData.sentences
+                                    .filter(sentence => 
+                                        sentence.verifications?.some(v => v.verdict === 'no')
+                                    )
+                                    .map(sentence => formatSentence(sentence))
+                                    .join('');
+                            }
 
-                // Add event listeners
-                document.getElementById('allVerdicts').addEventListener('click', showAllVerdicts);
-                document.getElementById('noVerdicts').addEventListener('click', showNoVerdicts);
-                
-                // Show all verdicts by default
-                showAllVerdicts();
-            `;
-
-            const scriptElement = newWindow.document.createElement('script');
-            scriptElement.textContent = scriptContent;
-            newWindow.document.body.appendChild(scriptElement);
-            
+                            // Add event listeners with touch support
+                            const allVerdictsBtn = document.getElementById('allVerdicts');
+                            const noVerdictsBtn = document.getElementById('noVerdicts');
+                            
+                            ['click', 'touchend'].forEach(event => {
+                                allVerdictsBtn.addEventListener(event, (e) => {
+                                    e.preventDefault();
+                                    showAllVerdicts();
+                                });
+                                
+                                noVerdictsBtn.addEventListener(event, (e) => {
+                                    e.preventDefault();
+                                    showNoVerdicts();
+                                });
+                            });
+                            
+                            // Show all verdicts by default
+                            showAllVerdicts();
+                        <\/script>
+                    </body>
+                </html>
+            `);
             newWindow.document.close();
-
         } catch (error) {
             console.error('Error opening analysis window:', error);
             showMessage(`Failed to load analysis report: ${error.message}`, true);
@@ -865,139 +906,98 @@
         };
     }
 
-    // Replace the info.txt loading with embedded HTML content
-    function loadInfoText() {
-        const infoHTML = `
-            <div class="space-y-4">
-                <h2 class="text-2xl font-bold text-gray-800">Reference Checker</h2>
-                <h3 class="text-xl font-semibold text-gray-800">Overview</h3>
-                <p>Reference Checker is an AI-powered tool designed to streamline the academic paper review process by automatically analyzing and verifying citations. The program examines each citation in a paper, compares it with the original source material, and provides a reliability assessment, helping reviewers identify potential issues and ensure research integrity.</p>
-                <p>Using advanced language models and document processing capabilities, the system can:</p>
-                <ul class="list-disc ml-6">
-                    <li>Extract and analyze citations from academic papers</li>
-                    <li>Locate and retrieve cited source materials</li>
-                    <li>Verify the accuracy of how sources are referenced</li>
-                    <li>Generate detailed reports highlighting potential discrepancies</li>
-                </ul>
-                <h3 class="text-xl font-semibold text-gray-800">How It Works</h3>
-                <p>The program processes academic papers through several stages:</p>
-                <ul class="list-disc ml-6">
-                    <li><strong>Document Analysis:</strong> Extracts text from PDF papers, identifying both inline citations and the references section</li>
-                    <li><strong>Source Retrieval:</strong> Automatically downloads cited papers from open-access sources</li>
-                    <li><strong>Citation Verification:</strong> Uses AI to compare citing text against source material</li>
-                    <li><strong>Report Generation:</strong> Produces detailed analysis with confidence ratings (yes/no/maybe) for each citation</li>
-                </ul>
-                <h3 class="text-xl font-semibold text-gray-800">Verification Results</h3>
-                <p>The program categorizes each citation with one of three verdicts:</p>
-                <ul class="list-disc ml-6">
-                    <li><strong>Yes:</strong> High confidence that the citation accurately represents the source</li>
-                    <li><strong>Maybe:</strong> Some uncertainty exists, but the citation appears generally accurate</li>
-                    <li><strong>No:</strong> Potential discrepancy detected, requiring manual review</li>
-                </ul>
-                <p>Experience shows that "yes" and "maybe" verdicts are generally reliable, while "no" verdicts often reveal interesting discrepancies worth investigating.</p>
 
-                <h3 class="text-xl font-semibold text-gray-800">Key Features</h3>
-                <h4 class="text-lg font-semibold text-gray-800">Document Processing</h4>
-                <ul class="list-disc ml-6">
-                    <li><strong>The program generally works best with numbered citations(for now)</strong></li>
-                    <li>Handles academic papers in PDF format</li>
-                    <li>Intelligent extraction of main content and references</li>
-                    <li>Detailed parsing of various citation styles</li>
-                </ul>
-                <h4 class="text-lg font-semibold text-gray-800">Reference Analysis</h4>
-                <ul class="list-disc ml-6">
-                    <li>Precise identification of in-text citations</li>
-                    <li>Smart mapping between citations and references</li>
-                    <li>Contextual understanding of citation usage</li>
-                </ul>
-                <h4 class="text-lg font-semibold text-gray-800">Document Retrieval</h4>
-                <ul class="list-disc ml-6">
-                    <li>Automated download of open-access papers</li>
-                    <li>Smart caching to avoid redundant downloads</li>
-                    <li>Extensible architecture supporting institutional access integration</li>
-                </ul>
-                <h4 class="text-lg font-semibold text-gray-800">Citation Verification</h4>
-                <ul class="list-disc ml-6">
-                    <li>Deep semantic analysis of citing text and source material</li>
-                    <li>Context-aware verification considering surrounding text</li>
-                    <li>Confidence scoring with detailed explanations</li>
-                </ul>
-                <h4 class="text-lg font-semibold text-gray-800">Output Generation</h4>
-                <ul class="list-disc ml-6">
-                    <li>Structured JSON output for programmatic use</li>
-                    <li>Human-readable summary reports</li>
-                    <li>Direct links to source materials</li>
-                    <li>Bundled reference package for offline review</li>
-                </ul>
-
-                <h3 class="text-xl font-semibold text-gray-800">Benefits</h3>
-                <h4 class="text-lg font-semibold text-gray-800">Enhanced Efficiency</h4>
-                <ul class="list-disc ml-6">
-                    <li>Reduces manual citation checking time by 60-80%</li>
-                    <li>Automates retrieval of reference materials</li>
-                    <li>Streamlines the review workflow</li>
-                </ul>
-                <h4 class="text-lg font-semibold text-gray-800">Improved Accuracy</h4>
-                <ul class="list-disc ml-6">
-                    <li>Systematic verification of all citations</li>
-                    <li>Reduced risk of missing problematic references</li>
-                    <li>Consistent evaluation criteria</li>
-                </ul>
-                <h4 class="text-lg font-semibold text-gray-800">Greater Accessibility</h4>
-                <ul class="list-disc ml-6">
-                    <li>Centralized access to all referenced materials</li>
-                    <li>Organized presentation of findings</li>
-                    <li>Easy navigation between citations and sources</li>
-                </ul>
-                <h4 class="text-lg font-semibold text-gray-800">Research Integrity</h4>
-                <ul class="list-disc ml-6">
-                    <li>Transparent verification process</li>
-                    <li>Documentation of citation accuracy</li>
-                    <li>Support for evidence-based peer review</li>
-                </ul>
-
-                <h3 class="text-xl font-semibold text-gray-800">Future Potential</h3>
-                <h4 class="text-lg font-semibold text-gray-800">Publisher Integration</h4>
-                <p>The system is designed for integration into publisher workflows, offering:</p>
-                <ul class="list-disc ml-6">
-                    <li>Automated pre-review citation checking</li>
-                    <li>Standardized citation verification reports</li>
-                    <li>Enhanced peer review efficiency</li>
-                </ul>
-                <h4 class="text-lg font-semibold text-gray-800">Research Analysis</h4>
-                <p>The tool enables meta-analysis of citation practices:</p>
-                <ul class="list-disc ml-6">
-                    <li>Field-specific citation accuracy patterns</li>
-                    <li>Publication-level citation reliability metrics</li>
-                    <li>Temporal trends in citation accuracy</li>
-                </ul>
-                <h4 class="text-lg font-semibold text-gray-800">Institutional Use</h4>
-                <p>Academic institutions can leverage the system for:</p>
-                <ul class="list-disc ml-6">
-                    <li>Thesis and dissertation review</li>
-                    <li>Research integrity monitoring</li>
-                    <li>Publication quality assessment</li>
-                </ul>
-
-                <h3 class="text-xl font-semibold text-gray-800">Current Limitations</h3>
-                <ul class="list-disc ml-6">
-                    <li>Limited to open-access materials</li>
-                    <li>Cost considerations for higher-tier language models</li>
-                    <li>Processing time varies with document complexity</li>
-                </ul>
-
-                <h3 class="text-xl font-semibold text-gray-800">Cost Considerations</h3>
-                <p class="text-sm">The system operates effectively with lower-cost models for proof-of-concept purposes. Enhanced accuracy is available using premium models at approximately $1 per article analyzed.</p>
-                <p class="mt-4 font-semibold">Developed by Emil Cohen</p>
-            </div>
-        `;
-        document.getElementById('infoBox').innerHTML = infoHTML;
-    }
 
     ReactDOM.createRoot(document.getElementById('statsContainer')).render(<ProcessingStats />);
-    loadInfoText();
     updateQueueTable();
     setInterval(updateQueueTable, 10000);
+
+    function openDocumentation() {
+        const newWindow = window.open('', '_blank', 'width=800,height=800,scrollbars=yes');
+        newWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+            <title>Reference Checker Documentation</title>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+            <style>
+                body {
+                font-family: 'Inter', sans-serif;
+                line-height: 1.5;
+                padding: 2rem;
+                max-width: 1200px;
+                margin: 0 auto;
+                }
+                h1, h2, h3, h4 { margin-top: 1.5em; }
+                ul { margin-left: 1.5em; }
+                .container { max-width: 800px; margin: 0 auto; }
+            </style>
+            </head>
+            <body>
+            <div class="container">
+                <h1>Reference Checker Documentation</h1>
+                
+                <h2>Overview</h2>
+                <p>Reference Checker is an AI-powered tool designed to streamline the academic paper review process by automatically analyzing and verifying citations. The program examines each citation in a paper, compares it with the original source material, and provides a reliability assessment, helping reviewers identify potential issues and ensure research integrity.</p>
+
+                <h2>How It Works</h2>
+                <p>The program processes academic papers through several stages:</p>
+                <ul>
+                <li><strong>Document Analysis:</strong> Extracts text from PDF papers, identifying both inline citations and the references section</li>
+                <li><strong>Source Retrieval:</strong> Automatically downloads cited papers from open-access sources</li>
+                <li><strong>Citation Verification:</strong> Uses AI to compare citing text against source material</li>
+                <li><strong>Report Generation:</strong> Produces detailed analysis with confidence ratings</li>
+                </ul>
+
+                <h2>Verification Results</h2>
+                <p>The program categorizes each citation with one of three verdicts:</p>
+                <ul>
+                <li><strong>Yes:</strong> High confidence that the citation accurately represents the source</li>
+                <li><strong>Maybe:</strong> Some uncertainty exists, but the citation appears generally accurate</li>
+                <li><strong>No:</strong> Potential discrepancy detected, requiring manual review</li>
+                </ul>
+
+                <h2>Key Features</h2>
+                <h3>Document Processing</h3>
+                <ul>
+                <li><strong>The program generally works best with numbered citations (for now)</strong></li>
+                <li>Handles academic papers in PDF format</li>
+                <li>Intelligent extraction of main content and references</li>
+                <li>Detailed parsing of various citation styles</li>
+                </ul>
+
+                <h3>Reference Analysis</h3>
+                <ul>
+                <li>Precise identification of in-text citations</li>
+                <li>Smart mapping between citations and references</li>
+                <li>Contextual understanding of citation usage</li>
+                </ul>
+
+                <h2>Benefits</h2>
+                <ul>
+                <li>Reduces manual citation checking time by 60-80%</li>
+                <li>Automates retrieval of reference materials</li>
+                <li>Systematic verification of all citations</li>
+                <li>Transparent verification process</li>
+                </ul>
+
+                <h2>Current Limitations</h2>
+                <ul>
+                <li>Limited to open-access materials</li>
+                <li>Cost considerations for higher-tier language models</li>
+                <li>Processing time varies with document complexity</li>
+                </ul>
+
+                <h2>Cost Considerations</h2>
+                <p>The system operates effectively with lower-cost models for proof-of-concept purposes. Enhanced accuracy is available using premium models at approximately $1 per article analyzed.</p>
+
+                <p class="mt-4"><strong>Developed by Emil Cohen</strong></p>
+            </div>
+            </body>
+            </html>
+        `);
+        newWindow.document.close();
+    }
 </script>
 </body>
 </html>
