@@ -576,7 +576,6 @@
     // Global function to open the analysis report in a new window
     async function openAnalysisWindow(requestId, originalFilename) {
         try {
-            // Fetch the verified.json data
             const response = await fetch(`${baseURL}/download/${requestId}/verified.json`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const analysisData = await response.json();
@@ -601,6 +600,8 @@
                             .verdict-no { color: #dc2626; }
                             .verdict-yes { color: #16a34a; }
                             .verdict-maybe { color: #ca8a04; }
+                            .reference-link { color: #2563eb; text-decoration: underline; }
+                            .reference-link:hover { color: #1d4ed8; }
                             @media (max-width: 768px) {
                                 .button-group {
                                     display: flex;
@@ -628,18 +629,6 @@
                                 margin-top: 8px;
                                 padding-left: 8px;
                                 border-left: 2px solid #e5e7eb;
-                            }
-                            @media (max-width: 768px) {
-                                body {
-                                    padding: 8px;
-                                }
-                                .analysis-card {
-                                    padding: 12px;
-                                }
-                                .reference-section {
-                                    margin-left: 8px;
-                                    padding-left: 8px;
-                                }
                             }
                         </style>
                     </head>
@@ -669,22 +658,35 @@
                             
                             function formatSentence(sentence) {
                                 let html = '<div class="analysis-card">';
-                                html += \`<p class="mb-2"><span class="font-semibold">Sentence \${sentence.id}:</span> \${sentence.sentence}</p>\`;
+                                html += '<p class="mb-2"><span class="font-semibold">Sentence ' + sentence.id + ':</span> ' + sentence.sentence + '</p>';
                                 
                                 if (sentence.verifications) {
                                     sentence.verifications.forEach(verification => {
                                         const reference = analysisData.references[verification.reference];
-                                        const referenceText = reference ? 
-                                            \`[\${verification.reference}] \${reference.title} (\${reference.first_author})\` : 
-                                            \`Reference \${verification.reference}\`;
+                                        let referenceText = '[' + verification.reference + '] ';
+                                        
+                                        if (reference) {
+                                            if (reference.article_downloaded && reference.web_address) {
+                                                referenceText += '<a href="' + reference.web_address + '" target="_blank" class="reference-link">' + 
+                                                            reference.first_author + ' et al.</a>';
+                                            } else if (reference.doi) {
+                                                referenceText += '<a href="https://doi.org/' + reference.doi + '" target="_blank" class="reference-link">' + 
+                                                            reference.first_author + ' et al.</a>';
+                                            } else {
+                                                referenceText += reference.first_author + ' et al.';
+                                            }
+                                        } else {
+                                            referenceText += 'Reference ' + verification.reference;
+                                        }
                                         
                                         html += '<div class="reference-section">';
-                                        html += \`<p class="text-gray-600 text-sm md:text-base"><span class="font-medium">Reference:</span> \${referenceText}</p>\`;
-                                        html += \`<p class="text-gray-600 text-sm md:text-base">
-                                            <span class="font-medium">Verdict:</span> 
-                                            <span class="font-semibold verdict-\${verification.verdict.toLowerCase()}">\${verification.verdict.toUpperCase()}</span>
-                                        </p>\`;
-                                        html += \`<p class="text-gray-600 text-sm md:text-base"><span class="font-medium">Explanation:</span> \${verification.explanation}</p>\`;
+                                        html += '<p class="text-gray-600 text-sm md:text-base"><span class="font-medium">Reference:</span> ' + 
+                                            referenceText + '</p>';
+                                        html += '<p class="text-gray-600 text-sm md:text-base"><span class="font-medium">Verdict:</span> ' + 
+                                            '<span class="font-semibold verdict-' + verification.verdict.toLowerCase() + '">' + 
+                                            verification.verdict.toUpperCase() + '</span></p>';
+                                        html += '<p class="text-gray-600 text-sm md:text-base"><span class="font-medium">Explanation:</span> ' + 
+                                            verification.explanation + '</p>';
                                         html += '</div>';
                                     });
                                 }

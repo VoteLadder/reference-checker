@@ -1,3 +1,4 @@
+
 import fitz
 import os
 import uuid
@@ -175,12 +176,43 @@ async def generate_summary(request: Request, db: Session = Depends(get_db)):
         logger.error(f"Error generating summary: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/status/{request_id}")
-async def get_status(request_id: str, db: Session = Depends(get_db)):
-    request = db.query(ProcessingRequest).filter(ProcessingRequest.request_id == request_id).first()
-    if not request:
-        raise HTTPException(status_code=404, detail="Request not found")
-    return request
+@app.get("/stats")
+async def get_stats(db: Session = Depends(get_db)):
+    """Return processing statistics."""
+    total_processed = db.query(ProcessingRequest).filter(ProcessingRequest.status == "completed").count()
+
+    # Get completed requests
+    completed_requests = db.query(ProcessingRequest).filter(
+        ProcessingRequest.status == "completed",
+        ProcessingRequest.created_at.isnot(None),
+        ProcessingRequest.updated_at.isnot(None)
+    ).all()
+
+    if completed_requests:
+        # Calculate processing times in minutes
+        processing_times = []
+        for req in completed_requests:
+            time_diff = (req.updated_at - req.created_at).total_seconds()
+            # Convert to minutes
+            minutes = time_diff / 60
+            # Filter out unreasonable times (e.g., less than 1 minute or more than 2 hours)
+            if 1 <= minutes <= 120:
+                processing_times.append(minutes)
+
+        if processing_times:
+            # Calculate average time
+            average_time = sum(processing_times) / len(processing_times)
+            # Round to nearest minute
+            average_time_minutes = str(round(average_time))
+        else:
+            average_time_minutes = "N/A"
+    else:
+        average_time_minutes = "N/A"
+
+    return {
+        "totalProcessed": total_processed,
+        "averageTime": average_time_minutes  # in minutes
+    }
 
 @app.get("/status")
 async def get_all_status(db: Session = Depends(get_db)):
