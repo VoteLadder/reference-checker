@@ -9,6 +9,10 @@ from collections import defaultdict
 from zipfile import ZipFile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import fitz  # PyMuPDF
+from dotenv import load_dotenv
+load_dotenv()
+
+
 
 # ===========================
 # Global Configuration and Constants
@@ -17,15 +21,16 @@ PDF_FILEPATH = 'article.pdf'
 OUTPUT_DIR = 'ArticleV'
 WORD_LIMIT = 12000
 
-# MAIN provider configuration
-MAIN_API_KEY   = "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"
-MAIN_API_URL   = "https://openrouter.ai/api/v1/chat/completions"
-MAIN_MODEL     = "openai/o3-mini"
 
-# VERIFICATION provider configuration
-VERIF_API_KEY   = "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"
-VERIF_API_URL   = "https://openrouter.ai/api/v1/chat/completions"
-VERIF_MODEL     = "openai/gpt-4o-mini"
+MAIN_API_KEY = os.getenv("MAIN_API_KEY")
+MAIN_API_URL = os.getenv("MAIN_API_URL")
+MAIN_MODEL = os.getenv("MAIN_MODEL")
+
+VERIF_API_KEY = os.getenv("VERIF_API_KEY")
+VERIF_API_URL = os.getenv("VERIF_API_URL")
+VERIF_MODEL = os.getenv("VERIF_MODEL")
+
+
 
 # Third party services
 CROSSREF_API_URL   = "https://api.crossref.org/works"
