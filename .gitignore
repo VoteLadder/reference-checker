@@ -1,0 +1,32 @@
+# Secrets — never commit
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.log
+venv/
+.pytest_cache/
+
+# Runtime data (uploaded articles, processed output, DB)
+ArticleV/
+processing/
+reference_checker.db
+uploads/
+
+# Historical/backup files kept on the server only
+app/m_backup.py
+app/main_bk.py
+app/bk_main.py
+app/bkmain.py
+app/BKref.py
+app/bakrefchek.py
+app/reference_checker.py.bak
+app/config.py
+app/info.txt
+app/static/bk*.html
+app/static/bk*index.html
+app/static/BK*.html
+app/static/inbak.html
+app/static/in4bk.html
+app/static/bak*.html
